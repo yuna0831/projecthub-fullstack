@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow public read for recruit posts
+    match /recruitPosts/{postId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+      
+      // Subcollection applications
+      match /applications/{appId} {
+        allow read: if request.auth != null && (
+          // Applicant can read their own
+          resource.data.userId == request.auth.uid || 
+          // Post owner (recruiter) can read
+          get(/databases/$(database)/documents/recruitPosts/$(postId)).data.userId == request.auth.uid
+        );
+        allow create: if request.auth != null;
+        // Allow owner to update (approve) or delete (reject)
+        allow update, delete: if request.auth != null && (
+           resource.data.projectOwnerId == request.auth.uid ||
+           get(/databases/$(database)/documents/recruitPosts/$(postId)).data.userId == request.auth.uid
+        );
+      }
+    }
+    
+    // User Notifications
+    match /users/{userId}/notifications/{notificationId} {
+      allow read, update, delete: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null; // Allow anyone to send a notification
+    }
+  }
+}
