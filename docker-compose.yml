@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: project_postgres
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: projecthub
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Express Backend (Optional: run via docker or locally)
+  # keeping it here for future use, but user might run locally first.
+  # For now, we mainly need the DB to be up.
+
+volumes:
+  postgres_data:

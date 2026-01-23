@@ -1,0 +1,11 @@
+# 의존성
+node_modules/
+.next/
+dist/
+
+# 보안 (중요!)
+.env
+serviceAccountKey.json
+*.db
+*.sqlite
+.DS_Store
