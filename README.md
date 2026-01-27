@@ -58,12 +58,12 @@ Built with a modern, scalable, and type-safe stack to ensure reliability and dev
 
 ## 🤫 Stealth Dev Note
 
-> *MadCollab is developed and maintained by an independent group of Badger developers. We are passionate about supporting the campus ecosystem and empowering every student to build something extraordinary.*
+> *MadCollab is designed, developed, and maintained by a single dedicated Badger developer. Built with passion to support the campus ecosystem and empower every student to build something extraordinary.*
 
 ---
 
 <p align="center">
   Built with ❤️ in Madison, WI.
   <br>
-  &copy; 2026 MadCollab Team.
+  &copy; 2026 MadCollab.
 </p>
