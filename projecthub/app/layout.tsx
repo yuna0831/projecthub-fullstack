@@ -3,7 +3,7 @@ import { AuthProvider } from "../context/UserContext";
 import Navbar from "../components/Navbar";
 
 export const metadata = {
-  title: "ProjectHub",
+  title: "MadCollab",
   description: "Collaborate on projects easily",
 };
 

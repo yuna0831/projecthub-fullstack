@@ -6,62 +6,107 @@ interface RecruitCardProps {
   id: string;
   title: string;
   description: string;
-  role: string;
-  createdBy: string;
-  teamMembers?: string[];
-  techStack?: string[];
-  category?: string; // ✨ Category
+  ownerName: string;
+  roles: string[];
+  techStacks: string[]; // Changed from techStack
+  isCourseProject?: boolean;
+  courseCode?: string;
+  semester?: string;
+  teamMembers?: string[]; // Optional, might be passed later
+  hackathonName?: string;
+  hackathonDate?: string;
 }
 
 export default function RecruitCard({
   id,
   title,
   description,
-  role,
-  createdBy,
+  ownerName,
+  roles = [],
+  techStacks = [],
+  isCourseProject,
+  courseCode,
+  semester,
   teamMembers = [],
-  techStack = [],
-  category = "Project", // Default
+  hackathonName,
+  hackathonDate
 }: RecruitCardProps) {
+
+  // Derive card type visuals
+  const isAcademic = isCourseProject;
+
   return (
-    <Link href={`/project/${id}`} className="group">
-      <div className="h-full flex flex-col justify-between border border-slate-200 rounded-xl p-6 bg-white shadow-sm hover:shadow-md hover:border-blue-300 transition-all duration-200">
+    <Link href={`/project/${id}`} className={`group relative block h-full`}>
+      <div className={`h-full flex flex-col justify-between border rounded-xl p-6 bg-white transition-all duration-200 
+        ${isAcademic ? 'border-red-100 hover:border-red-300 shadow-sm hover:shadow-red-100' : 'border-slate-200 hover:border-blue-300 shadow-sm hover:shadow-md'}
+      `}>
 
         <div>
-          <div className="flex justify-between items-start mb-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-50 px-2 py-1 rounded mb-1 inline-block border border-slate-100">
-              {category}
-            </span>
+          {/* Top Badge area */}
+          <div className="flex justify-between items-start mb-3">
+            {isAcademic ? (
+              // Academic Badge: Course Code Emphasis
+              <span className="text-xs font-extrabold uppercase tracking-wide text-[#c5050c] bg-red-50 px-3 py-1 rounded-md border border-red-100">
+                {courseCode || 'Course Project'}
+              </span>
+            ) : hackathonName ? (
+              // 🏆 Hackathon Badge
+              <span className="text-xs font-bold uppercase tracking-wide text-purple-700 bg-purple-50 px-3 py-1 rounded-md border border-purple-100">
+                🏆 {hackathonName}
+              </span>
+            ) : (
+              // Personal Badge
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-1 rounded inline-block">
+                Side Project
+              </span>
+            )}
+
             {teamMembers.length > 0 && (
-              <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">
+              <span className="bg-green-50 text-green-700 text-[10px] px-2 py-1 rounded-full font-semibold">
                 {teamMembers.length} joined
               </span>
             )}
           </div>
 
-          <h3 className="text-lg font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-1 mb-2">{title}</h3>
+          {/* Hackathon Date (if applicable) */}
+          {!isAcademic && hackathonName && hackathonDate && (
+            <div className="mb-2 text-xs text-purple-600 font-bold flex items-center gap-1">
+              📅 {new Date(hackathonDate).toLocaleDateString()}
+            </div>
+          )}
 
-          <p className="text-slate-500 text-sm mb-3 line-clamp-2 leading-relaxed">{description}</p>
+          <h3 className={`text-lg font-bold mb-2 transition-colors line-clamp-1
+            ${isAcademic ? 'text-slate-900 group-hover:text-[#c5050c]' : 'text-slate-800 group-hover:text-blue-600'}
+          `}>
+            {title}
+          </h3>
 
-          {/* Tech Stack Tags */}
-          <div className="flex flex-wrap gap-2 mb-4">
-            {(techStack || []).slice(0, 3).map((tech, i) => (
-              <span key={i} className="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded border border-slate-200">
+          <p className="text-slate-500 text-sm mb-4 line-clamp-2 leading-relaxed h-[40px]">{description}</p>
+
+          {/* Tech Stack Area - Emphasize for Personal */}
+          <div className="flex flex-wrap gap-2 mb-2">
+            {(techStacks || []).slice(0, 3).map((tech, i) => (
+              <span key={i} className={`text-xs px-2 py-1 rounded border transition-colors
+                ${!isAcademic
+                  ? 'bg-blue-50 text-blue-700 border-blue-100 font-medium' // Highlight for Personal
+                  : 'bg-slate-50 text-slate-500 border-slate-100'        // Settle for Academic
+                }
+              `}>
                 {tech}
               </span>
             ))}
-            {(techStack?.length || 0) > 3 && (
-              <span className="text-xs text-slate-400 self-center">+{techStack!.length - 3}</span>
+            {(techStacks?.length || 0) > 3 && (
+              <span className="text-xs text-slate-400 self-center">+{techStacks!.length - 3}</span>
             )}
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-          <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">
-            Looking for: {role}
+        <div className="flex items-center justify-between pt-4 border-t border-slate-50 mt-2">
+          <span className="text-xs font-semibold text-slate-600 bg-slate-50 px-2 py-1 rounded truncate max-w-[60%]">
+            Looking for: {roles.length > 0 ? roles[0] + (roles.length > 1 ? ` +${roles.length - 1}` : "") : "Teammates"}
           </span>
-          <span className="text-xs text-slate-400 font-medium">
-            by {createdBy}
+          <span className="text-xs text-slate-400 font-medium truncate ml-2">
+            {ownerName}
           </span>
         </div>
 

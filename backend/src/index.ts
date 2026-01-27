@@ -17,7 +17,10 @@ app.get('/', (req, res) => {
 
 // Routes
 import userRoutes from './routes/userRoutes';
+import projectRoutes from './routes/projectRoutes';
+
 app.use('/api/users', userRoutes);
+app.use('/api/projects', projectRoutes);
 
 // Protected Route Example
 // 이 경로는 verifyToken 미들웨어를 통과해야만 접근 가능합니다.

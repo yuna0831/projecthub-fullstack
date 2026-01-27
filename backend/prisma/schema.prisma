@@ -12,12 +12,167 @@ model User {
   firebaseUid String   @unique
   email       String   @unique
   name        String?
+  major       String?  // e.g. "Computer Science"
+  year        String?  // e.g. "Junior", "Senior" or Int (e.g. 3) - User said year field, kept flexible as String for now or Int? "year 필드" usually implies academic year. I'll use String for "Junior" etc or Int. Layout says "year". I will use String to allow "Junior" or "2024". Actually "year" often means "Sophomore".
+  // Let's use String to be safe for "Freshman", "Sophomore" etc. 
+  // Profile Fields
+  bio         String?  // Short bio
+  githubUrl   String?
+  linkedinUrl String?
+  portfolioUrl String?
+  techStacks  String[] // e.g. ["React", "Python"]
+  
+  profileImage String? // URL
+  coverImage   String? // URL
+
   role        Role     @default(USER)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  // Relations
+  ownedProjects Project[]     @relation("ProjectOwner")
+  applications  Application[]
+  
+  experiences   Experience[]
+  educations    Education[]
+  
+  notifications Notification[]
+}
+
+model Experience {
+  id          String   @id @default(uuid())
+  title       String
+  company     String
+  startDate   String   // e.g. "2023-01"
+  endDate     String?  // e.g. "2023-06" or null for current
+  description String?  @db.Text
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Education {
+  id             String   @id @default(uuid())
+  school         String
+  degree         String   // e.g. "BS"
+  major          String
+  graduationYear String   // e.g. "2025"
+  
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  content     String?  @db.Text // Markdown content
+  views       Int      @default(0)
+  status      ProjectStatus @default(OPEN)
+  
+  ownerId     String
+  owner       User     @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  // Relations
+  techStacks  TechStack[]
+  applications Application[]
+
+  // 🦡 BadgerMatch Fields
+  meetingType     String   @default("ONLINE") // ONLINE, OFFLINE, HYBRID
+  location        String?  // e.g. "College Library"
+  duration        String?  // e.g. "One Semester"
+  deadline        DateTime?
+  contactUrl      String?
+  category        String   @default("IT/Development") // 🦡 New Category Field
+  
+  // 🏆 Hackathon Fields
+  hackathonName   String?
+  hackathonDate   DateTime?
+
+  // UW-Madison Specifics
+  courseCode      String?  // e.g. "CS506"
+  isCourseProject Boolean  @default(false)
+  semester        String?  // e.g. "Spring 2024"
+
+  // Relations
+  roles       ProjectRole[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([status])
+  @@index([ownerId])
+}
+
+// Normalized Table for filtering & analytics
+model TechStack {
+  id   String @id @default(uuid())
+  name String @unique // e.g., "React", "Node.js"
+
+  projects Project[]
+}
+
+model ProjectRole {
+  id        String   @id @default(uuid())
+  name      String   // e.g. "Frontend Developer"
+  count     Int      @default(1)
+  skills    String[] // e.g. ["React", "Figma"]
+  
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Application {
+  id        String   @id @default(uuid())
+  status    ApplicationStatus @default(PENDING)
+  resumeUrl String?
+  message   String?
+  
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, userId]) // Prevent duplicate applications
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  message   String
+  type      NotificationType @default(INFO) // INFO, SUCCESS, ERROR, WARNING
+  read      Boolean  @default(false)
+  link      String?  // Optional link to navigate to (e.g., /project/123)
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
 }
 
 enum Role {
   USER
   ADMIN
+}
+
+enum ProjectStatus {
+  OPEN
+  CLOSED
+  COMPLETED
+}
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  ERROR
+  WARNING
 }

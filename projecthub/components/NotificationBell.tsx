@@ -2,66 +2,108 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/UserContext";
-import { getNotifications, markNotificationRead, subscribeToNotifications, Notification } from "../lib/firestore";
+
+interface MyNotification {
+    id: string;
+    message: string;
+    type: "INFO" | "SUCCESS" | "ERROR";
+    read: boolean;
+    link?: string;
+    createdAt: string;
+}
 
 export default function NotificationBell() {
     const { user } = useAuth();
-    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [notifications, setNotifications] = useState<MyNotification[]>([]);
     const [isOpen, setIsOpen] = useState(false);
     const [hasUnread, setHasUnread] = useState(false);
 
-    // Real-time subscription
+    // Polling Function
+    const fetchNotifications = async () => {
+        if (!user) return;
+        try {
+            const token = await user.getIdToken();
+            const res = await fetch(`http://localhost:3001/api/users/notifications`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setNotifications(data);
+                setHasUnread(data.some((n: MyNotification) => !n.read));
+            }
+        } catch (e) {
+            console.error("Failed to fetch notifications", e);
+        }
+    };
+
+    // Poll every 60s
     useEffect(() => {
         if (!user) return;
-
-        const unsubscribe = subscribeToNotifications(user.uid, (data) => {
-            setNotifications(data);
-            setHasUnread(data.some(n => !n.read));
-        });
-
-        return () => unsubscribe();
+        fetchNotifications(); // Initial
+        const interval = setInterval(fetchNotifications, 60000);
+        return () => clearInterval(interval);
     }, [user]);
 
     const handleToggle = () => setIsOpen(!isOpen);
 
-    const handleRead = async (id: string) => {
+    const handleRead = async (id: string, link?: string) => {
         if (!user) return;
-        await markNotificationRead(user.uid, id);
+
+        // Optimistic Update
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
         setHasUnread(notifications.some(n => !n.read && n.id !== id));
+
+        // Background API Call
+        try {
+            const token = await user.getIdToken();
+            await fetch(`http://localhost:3001/api/users/notifications/${id}/read`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+        } catch (e) {
+            console.error("Mark read failed", e);
+        }
+
+        // Navigate if link exists
+        if (link) {
+            window.location.href = link;
+        }
     };
 
     if (!user) return null;
 
     return (
         <div className="relative">
-            <button onClick={handleToggle} className="relative p-2 text-gray-600 hover:text-blue-500">
-                🔔
+            <button onClick={handleToggle} className="relative p-2 text-gray-600 hover:text-blue-500 transition-colors">
+                <span className="text-xl">🔔</span>
                 {hasUnread && (
-                    <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></span>
+                    <span className="absolute top-1 right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
                 )}
             </button>
 
             {isOpen && (
-                <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 shadow-lg rounded-lg z-50">
-                    <div className="p-3 border-b bg-gray-50 flex justify-between items-center">
-                        <h3 className="font-semibold text-sm">Notifications</h3>
-                        <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 shadow-xl rounded-xl z-50 overflow-hidden ring-1 ring-black/5 animate-fadeIn">
+                    <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
+                        <h3 className="font-bold text-slate-800 text-sm">Notifications</h3>
+                        <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-slate-600">✕</button>
                     </div>
-                    <ul className="max-h-60 overflow-y-auto">
+                    <ul className="max-h-80 overflow-y-auto divide-y divide-slate-100">
                         {notifications.length === 0 ? (
-                            <li className="p-4 text-center text-gray-400 text-sm">No notifications</li>
+                            <li className="p-8 text-center text-slate-400 text-sm">No new notifications</li>
                         ) : (
                             notifications.map((n) => (
                                 <li
                                     key={n.id}
-                                    className={`p-3 border-b hover:bg-gray-50 text-sm cursor-pointer ${n.read ? 'opacity-50' : 'bg-blue-50 font-medium'}`}
-                                    onClick={() => handleRead(n.id)}
+                                    className={`p-4 hover:bg-slate-50 transition-colors cursor-pointer flex gap-3 ${n.read ? 'opacity-60 grayscale' : 'bg-blue-50/30'}`}
+                                    onClick={() => handleRead(n.id, n.link)}
                                 >
-                                    <p>{n.message}</p>
-                                    <span className="text-xs text-gray-400 block mt-1">
-                                        {n.createdAt?.toDate ? n.createdAt.toDate().toLocaleDateString() : 'Just now'}
-                                    </span>
+                                    <div className={`mt-1 w-2 h-2 rounded-full shrink-0 ${n.read ? 'bg-transparent' : 'bg-red-500'}`} />
+                                    <div>
+                                        <p className="text-sm text-slate-800 leading-snug">{n.message}</p>
+                                        <span className="text-xs text-slate-400 block mt-1.5 font-medium">
+                                            {new Date(n.createdAt).toLocaleDateString()}
+                                        </span>
+                                    </div>
                                 </li>
                             ))
                         )}
