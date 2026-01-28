@@ -62,8 +62,3 @@ Built with a modern, scalable, and type-safe stack to ensure reliability and dev
 
 ---
 
-<p align="center">
-  Built with ❤️ in Madison, WI.
-  <br>
-  &copy; 2026 MadCollab.
-</p>

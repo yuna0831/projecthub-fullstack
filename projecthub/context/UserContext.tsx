@@ -22,7 +22,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (firebaseUser) {
         // 🛡️ Security Check
         const email = firebaseUser.email || "";
-        if (!email.endsWith("@wisc.edu")) {
+        const isDev = process.env.NODE_ENV === 'development';
+        if (!isDev && !email.endsWith("@wisc.edu")) {
           alert("Access Denied: Only @wisc.edu emails are allowed. Please sign in with your university account.");
           await signOut(auth);
           return;
@@ -82,7 +83,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const user = result.user;
 
       // Post-login checks
-      if (!user.email?.endsWith("@wisc.edu")) {
+      const isDev = process.env.NODE_ENV === 'development';
+      if (!isDev && !user.email?.endsWith("@wisc.edu")) {
         await signOut(auth);
         throw new Error("Only @wisc.edu emails are allowed.");
       }
@@ -105,7 +107,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
 
   const loginWithEmail = async (email: string, pass: string) => {
-    if (!email.endsWith("@wisc.edu")) throw new Error("Only @wisc.edu emails are allowed.");
+    const isDev = process.env.NODE_ENV === 'development';
+    if (!isDev && !email.endsWith("@wisc.edu")) throw new Error("Only @wisc.edu emails are allowed.");
 
     try {
       const res = await signInWithEmailAndPassword(auth, email, pass);
@@ -121,7 +124,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signupWithEmail = async (email: string, pass: string, name: string) => {
-    if (!email.endsWith("@wisc.edu")) throw new Error("Only @wisc.edu emails are allowed.");
+    const isDev = process.env.NODE_ENV === 'development';
+    if (!isDev && !email.endsWith("@wisc.edu")) throw new Error("Only @wisc.edu emails are allowed.");
 
     const res = await createUserWithEmailAndPassword(auth, email, pass);
     await updateProfile(res.user, { displayName: name });

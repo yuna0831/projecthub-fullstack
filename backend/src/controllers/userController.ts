@@ -141,12 +141,13 @@ export const updateApplicationStatus = async (req: Request, res: Response) => {
 export const updateProfile = async (req: Request, res: Response) => {
   try {
     const firebaseUid = req.user?.uid;
-    const { bio, githubUrl, linkedinUrl, portfolioUrl, techStacks, major, year, name, profileImage, coverImage } = req.body;
+    const { bio, githubUrl, linkedinUrl, portfolioUrl, techStacks, workStyles, futureRole, major, year, name, profileImage, coverImage } = req.body;
 
     if (!firebaseUid) return res.status(401).json({ error: 'Unauthorized' });
 
-    // Validate if techStacks is array
+    // Validate if arrays
     const validTechStacks = Array.isArray(techStacks) ? techStacks : [];
+    const validWorkStyles = Array.isArray(workStyles) ? workStyles : [];
 
     const updatedUser = await prisma.user.update({
       where: { firebaseUid },
@@ -156,6 +157,8 @@ export const updateProfile = async (req: Request, res: Response) => {
         linkedinUrl,
         portfolioUrl,
         techStacks: validTechStacks,
+        workStyles: validWorkStyles,
+        futureRole,
         major,
         year,
         name,

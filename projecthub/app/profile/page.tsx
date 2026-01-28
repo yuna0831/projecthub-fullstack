@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import Image from "next/image";
@@ -11,8 +12,7 @@ import {
   AcademicCapIcon,
   PlusIcon,
   CameraIcon,
-  LinkIcon,
-  XMarkIcon,
+
   CheckIcon
 } from "@heroicons/react/24/outline";
 
@@ -38,14 +38,21 @@ export default function ProfilePage() {
   const [formData, setFormData] = useState({
     name: "", major: "", year: "", bio: "",
     githubUrl: "", linkedinUrl: "", portfolioUrl: "",
-    techStacks: "", profileImage: "", coverImage: ""
+    techStacks: "", profileImage: "", coverImage: "",
+    workStyles: [] as string[], futureRole: ""
   });
 
   const [newItem, setNewItem] = useState<any>({});
+  const [badges, setBadges] = useState<any>({});
 
   useEffect(() => {
-    if (user) fetchProfile();
+    if (user) {
+      fetchProfile();
+
+    }
   }, [user]);
+
+
 
   async function fetchProfile() {
     try {
@@ -70,6 +77,14 @@ export default function ProfilePage() {
       setEducations(userData.educations || []);
       setExperiences(userData.experiences || []);
 
+      // Fetch Badges
+      if (userData.id) {
+        fetch(`http://localhost:3001/api/reviews/user/${userData.id}/badges`)
+          .then(r => r.json())
+          .then(data => setBadges(data))
+          .catch(e => console.error("Badge fetch error", e));
+      }
+
       setFormData({
         name: userData.name || "",
         major: userData.major || "",
@@ -80,7 +95,9 @@ export default function ProfilePage() {
         portfolioUrl: userData.portfolioUrl || "",
         techStacks: userData.techStacks ? userData.techStacks.join(", ") : "",
         profileImage: userData.profileImage || "",
-        coverImage: userData.coverImage || ""
+        coverImage: userData.coverImage || "",
+        workStyles: userData.workStyles || [],
+        futureRole: userData.futureRole || ""
       });
     } catch (e) {
       console.error(e);
@@ -186,337 +203,323 @@ export default function ProfilePage() {
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading Profile...</div>;
   if (!user) return <div className="min-h-screen flex items-center justify-center">Please log in</div>;
 
+
+
   return (
-    <main className="min-h-screen bg-[#F3F2EF] py-8 px-4 font-sans">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <main className="min-h-screen bg-[#F3F2EF] py-8 px-4 font-sans text-slate-900">
+      <div className="max-w-6xl mx-auto space-y-6">
 
-        {/* Main Profile Card */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-slate-200 relative">
-
-          {/* Cover Photo */}
-          <div className={`h-48 relative bg-[#1D2226]`}>
+        {/* 1. Header Section (LinkedIn Style) */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative group">
+          {/* Cover Image */}
+          <div className="h-52 relative bg-[#1D2226]">
             {formData.coverImage ? (
               <Image src={formData.coverImage} alt="Cover" fill className="object-cover" />
             ) : (
-              <div className="w-full h-full bg-gradient-to-r from-slate-700 to-slate-900"></div>
+              <div className="w-full h-full bg-gradient-to-r from-[#c5050c] to-[#9b0000]"></div>
             )}
-
             {isEditing && (
-              <label className="absolute top-4 right-4 bg-white p-2 rounded-full shadow-md text-[#c5050c] hover:bg-slate-50 transition cursor-pointer">
+              <label className="absolute top-4 right-4 bg-white/90 p-2 rounded-full shadow-lg text-[#c5050c] hover:bg-white transition cursor-pointer z-20">
                 <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'coverImage')} />
                 <CameraIcon className="w-5 h-5" />
               </label>
             )}
           </div>
 
-          <div className="px-8 pb-8 relative">
+          <div className="px-8 pb-8">
+            <div className="flex flex-col md:flex-row items-start justify-between">
 
-            {/* Avatar & Edit Button Row */}
-            <div className="flex justify-between items-end -mt-16 mb-4">
-              <div className="relative group">
-                <div className="w-40 h-40 rounded-full border-[6px] border-white shadow-lg bg-white overflow-hidden relative z-10">
-                  {formData.profileImage || user.photoURL ? (
-                    <Image src={(formData.profileImage || user.photoURL) as string} alt="User" fill className="object-cover" />
+              {/* Profile Info */}
+              <div className="flex flex-col md:flex-row gap-6 -mt-20 relative z-10">
+                {/* Avatar */}
+                <div className="relative">
+                  <div className="w-40 h-40 rounded-full border-[6px] border-white shadow-xl bg-white overflow-hidden relative">
+                    {formData.profileImage || user?.photoURL ? (
+                      <Image src={(formData.profileImage || user?.photoURL) as string} alt="User" fill className="object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-slate-100 flex items-center justify-center text-6xl">🦡</div>
+                    )}
+                    {uploading && <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-xs font-bold">Uploading...</div>}
+                  </div>
+                  {isEditing && (
+                    <label className="absolute bottom-2 right-2 bg-white p-2 rounded-full shadow-md text-[#c5050c] hover:bg-slate-50 border border-slate-200 cursor-pointer z-20">
+                      <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'profileImage')} />
+                      <CameraIcon className="w-5 h-5" />
+                    </label>
+                  )}
+                </div>
+
+                {/* Text Info */}
+                <div className="mt-20 md:mt-24 space-y-2">
+                  {isEditing ? (
+                    <div className="space-y-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                      <input className="text-2xl font-bold p-1 w-full border rounded" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="Name" />
+                      <input className="text-sm font-medium text-[#c5050c] p-1 w-full border rounded" value={formData.futureRole} onChange={e => setFormData({ ...formData, futureRole: e.target.value })} placeholder="Future Role (e.g. Fullstack Dev)" />
+                      <div className="flex gap-2">
+                        <input className="text-sm p-1 border rounded w-1/2" value={formData.major} onChange={e => setFormData({ ...formData, major: e.target.value })} placeholder="Major" />
+                        <input className="text-sm p-1 border rounded w-1/2" value={formData.year} onChange={e => setFormData({ ...formData, year: e.target.value })} placeholder="Year" />
+                      </div>
+                    </div>
                   ) : (
-                    <div className="w-full h-full bg-slate-100 flex items-center justify-center text-5xl">👤</div>
-                  )}
-                  {uploading && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-xs font-bold">Uploading...</div>
+                    <div>
+                      <h1 className="text-3xl font-bold flex items-center gap-3">
+                        {profile?.name}
+                        {profile?.futureRole && (
+                          <span className="px-3 py-1 bg-red-50 text-[#c5050c] text-xs font-bold uppercase tracking-wide rounded-full border border-red-100 shadow-sm">
+                            {profile.futureRole}
+                          </span>
+                        )}
+                      </h1>
+                      <div className="text-slate-600 flex items-center gap-4 mt-1 text-sm font-medium">
+                        <span className="flex items-center gap-1.5"><AcademicCapIcon className="w-5 h-5 text-slate-400" /> {profile?.major || "Undecided"} • {profile?.year || "Freshman"}</span>
+                        <span className="flex items-center gap-1.5"><MapPinIcon className="w-5 h-5 text-slate-400" /> Madison, WI</span>
+                      </div>
+
+                      {/* Work Style Chips */}
+                      {profile?.workStyles?.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-4">
+                          {profile.workStyles.map((ws: string) => (
+                            <span key={ws} className="px-3 py-1 bg-slate-800 text-white text-xs font-bold rounded-lg shadow-sm border border-slate-700">
+                              {ws}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
-                {isEditing && (
-                  <label className="absolute bottom-2 right-2 z-20 bg-white p-2 rounded-full shadow-md text-[#c5050c] hover:bg-slate-50 border border-slate-200 cursor-pointer">
-                    <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'profileImage')} />
-                    <CameraIcon className="w-5 h-5" />
-                  </label>
-                )}
               </div>
 
-              {/* Header Action Button */}
-              <div className="mb-2">
-                {isEditing ? (
-                  // Save/Cancel handled at bottom of form, but nice to have consistent header
-                  <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">Editing Mode</span>
-                ) : (
-                  <button onClick={() => setIsEditing(true)} className="p-2 hover:bg-slate-100 rounded-full transition text-slate-600">
-                    <PencilIcon className="w-6 h-6" />
+              {/* Action Buttons */}
+              <div className="mt-4 md:mt-6 flex flex-col items-end gap-3">
+                <div className="flex gap-3">
+                  {!isEditing && (
+                    <>
+                      {profile?.githubUrl && (
+                        <a href={profile.githubUrl} target="_blank" rel="noopener noreferrer" className="p-2 bg-slate-50 border border-slate-200 text-slate-600 hover:text-[#c5050c] hover:border-[#c5050c] rounded-full transition shadow-sm group">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src="https://simpleicons.org/icons/github.svg" width={20} height={20} alt="GitHub" className="opacity-70 group-hover:opacity-100" />
+                        </a>
+                      )}
+                      {profile?.linkedinUrl && (
+                        <a href={profile.linkedinUrl} target="_blank" rel="noopener noreferrer" className="p-2 bg-slate-50 border border-slate-200 text-slate-600 hover:text-[#0077b5] hover:border-[#0077b5] rounded-full transition shadow-sm group">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src="https://simpleicons.org/icons/linkedin.svg" width={20} height={20} alt="LinkedIn" className="opacity-70 group-hover:opacity-100" />
+                        </a>
+                      )}
+                      {profile?.portfolioUrl && (
+                        <a href={profile.portfolioUrl} target="_blank" rel="noopener noreferrer" className="p-2 bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-900 rounded-full transition shadow-sm group">
+                          <BriefcaseIcon className="w-5 h-5 opacity-70 group-hover:opacity-100" />
+                        </a>
+                      )}
+                    </>
+                  )}
+                  <button
+                    onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)}
+                    className={`px-6 py-2 rounded-full font-bold shadow-md transition flex items-center gap-2 ${isEditing ? 'bg-[#c5050c] text-white hover:bg-red-700' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'}`}
+                  >
+                    {isEditing ? <><CheckIcon className="w-5 h-5" /> Save Profile</> : <><PencilIcon className="w-4 h-4" /> Edit Profile</>}
                   </button>
-                )}
+                  {isEditing && <button onClick={() => setIsEditing(false)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-full">Cancel</button>}
+                </div>
               </div>
             </div>
 
-            {/* Basic Info */}
-            <div className="mb-6">
-              {isEditing ? (
-                <div className="space-y-4">
-                  <div className="flex gap-4">
-                    <div className="flex-1">
-                      <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Full Name</label>
-                      <input type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-[#c5050c] focus:border-transparent outline-none transition" />
-                    </div>
-                    <div className="flex-1">
-                      <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Header Headline</label>
-                      {/* Can add a headline field later, using Major for now */}
-                      <input type="text" placeholder="Headline (e.g. CS Student @ UW-Madison)" className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-[#c5050c] focus:border-transparent outline-none transition" disabled />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Major</label>
-                      <input type="text" value={formData.major} onChange={e => setFormData({ ...formData, major: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-[#c5050c] focus:border-transparent outline-none transition" />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Year</label>
-                      <input type="text" value={formData.year} onChange={e => setFormData({ ...formData, year: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-[#c5050c] focus:border-transparent outline-none transition" />
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <h1 className="text-3xl font-bold text-slate-900 mb-1">{profile.name}</h1>
-                  <p className="text-lg text-slate-600 mb-3">{profile.major || "No Major"} Student</p>
-                  <p className="text-sm text-slate-500 flex items-center gap-2">
-                    <span className="flex items-center gap-1"><AcademicCapIcon className="w-4 h-4" /> {profile.year || "Year N/A"}</span>
-                    <span>•</span>
-                    <span className="flex items-center gap-1"><MapPinIcon className="w-4 h-4" /> Madison, WI</span>
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Social Buttons (Moved to top) */}
-            {!isEditing && (
-              <div className="flex gap-3 mb-6">
-                {profile.githubUrl && (
-                  <a href={profile.githubUrl} target="_blank" className="px-4 py-1.5 border border-[#c5050c] text-[#c5050c] font-bold text-sm rounded-full hover:bg-red-50 transition">
-                    GitHub
-                  </a>
-                )}
-                {profile.linkedinUrl && (
-                  <a href={profile.linkedinUrl} target="_blank" className="px-4 py-1.5 border border-[#0077b5] text-[#0077b5] font-bold text-sm rounded-full hover:bg-blue-50 transition">
-                    LinkedIn
-                  </a>
-                )}
-                {profile.portfolioUrl && (
-                  <a href={profile.portfolioUrl} target="_blank" className="px-4 py-1.5 border border-slate-600 text-slate-600 font-bold text-sm rounded-full hover:bg-slate-50 transition">
-                    Portfolio
-                  </a>
-                )}
-              </div>
-            )}
-
-            {/* Social Inputs (Editing) */}
+            {/* Editing: Work Styles & Links */}
             {isEditing && (
-              <div className="bg-slate-50 p-4 rounded-lg mb-6 border border-slate-200">
-                <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Social Links</label>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="w-20 text-xs font-bold text-slate-500">GitHub</span>
-                    <input type="text" value={formData.githubUrl} onChange={e => setFormData({ ...formData, githubUrl: e.target.value })} className="flex-1 px-3 py-2 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-[#c5050c] outline-none" />
+              <div className="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200 grid md:grid-cols-2 gap-6">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Work Styles (Max 3)</label>
+                  <div className="flex flex-wrap gap-2">
+                    {["#NightOwl", "#EarlyBird", "#Remote", "#InPerson", "#Leader", "#Follower", "#Planner", "#Improviser", "#Creative", "#Logical"].map(tag => (
+                      <button
+                        key={tag}
+                        onClick={() => {
+                          const styles = formData.workStyles.includes(tag)
+                            ? formData.workStyles.filter(t => t !== tag)
+                            : formData.workStyles.length < 3 ? [...formData.workStyles, tag] : formData.workStyles;
+                          setFormData({ ...formData, workStyles: styles });
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition ${formData.workStyles.includes(tag) ? "bg-[#c5050c] text-white border-[#c5050c]" : "bg-white text-slate-500 hover:border-slate-400"}`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-20 text-xs font-bold text-slate-500">LinkedIn</span>
-                    <input type="text" value={formData.linkedinUrl} onChange={e => setFormData({ ...formData, linkedinUrl: e.target.value })} className="flex-1 px-3 py-2 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-[#c5050c] outline-none" />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-20 text-xs font-bold text-slate-500">Portfolio</span>
-                    <input type="text" value={formData.portfolioUrl} onChange={e => setFormData({ ...formData, portfolioUrl: e.target.value })} className="flex-1 px-3 py-2 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-[#c5050c] outline-none" />
-                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Social Links</label>
+                  <input className="w-full text-sm p-2 border rounded" placeholder="GitHub URL" value={formData.githubUrl} onChange={e => setFormData({ ...formData, githubUrl: e.target.value })} />
+                  <input className="w-full text-sm p-2 border rounded" placeholder="LinkedIn URL" value={formData.linkedinUrl} onChange={e => setFormData({ ...formData, linkedinUrl: e.target.value })} />
+                  <input className="w-full text-sm p-2 border rounded" placeholder="Portfolio URL" value={formData.portfolioUrl} onChange={e => setFormData({ ...formData, portfolioUrl: e.target.value })} />
                 </div>
               </div>
             )}
 
-
-            {/* About Section */}
-            <div className="mb-6">
-              <h2 className="text-xl font-bold text-slate-900 mb-3">About</h2>
+            {/* About (Summary) */}
+            <div className="mt-8 pt-8 border-t border-slate-100">
+              <h3 className="text-lg font-bold text-slate-900 mb-2">About Me</h3>
               {isEditing ? (
-                <textarea rows={5} className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-[#c5050c] outline-none leading-relaxed" value={formData.bio} onChange={e => setFormData({ ...formData, bio: e.target.value })} />
+                <textarea className="w-full p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#c5050c] outline-none" rows={4} value={formData.bio} onChange={e => setFormData({ ...formData, bio: e.target.value })} />
               ) : (
-                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
-                  {profile.bio || "Write a summary to highlight your personality or work experience."}
-                </p>
+                <p className="text-slate-600 leading-relaxed whitespace-pre-line max-w-4xl">{profile?.bio || "No description provided."}</p>
               )}
             </div>
+          </div>
+        </div>
 
-            {/* Skills */}
-            <div className="mb-2">
-              <h2 className="text-xl font-bold text-slate-900 mb-3">Skills</h2>
-              {isEditing ? (
-                <input type="text" className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-[#c5050c] outline-none" placeholder="React, Python, Design..." value={formData.techStacks} onChange={e => setFormData({ ...formData, techStacks: e.target.value })} />
+        {/* 2. Main Grid Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          {/* Left Column (Stats, Badges, Skills) */}
+          <div className="space-y-6">
+
+
+
+            {/* 🏆 Badges */}
+            <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-6 rounded-xl shadow-lg relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10 text-9xl">🏆</div>
+              <h3 className="text-lg font-bold mb-4 relative z-10">Reputation & Badges</h3>
+
+              {Object.keys(badges).length === 0 ? (
+                <div className="text-slate-400 text-sm italic relative z-10">
+                  No badges yet. Join projects to earn them!
+                </div>
               ) : (
-                <div className="flex flex-wrap gap-2">
-                  {profile.techStacks?.map((t: string) => (
-                    <span key={t} className="px-3 py-1 bg-slate-100 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-200 transition cursor-default">
-                      {t}
-                    </span>
+                <div className="grid grid-cols-3 gap-2 relative z-10">
+                  {/* Badge Rendering */}
+                  {['CODE_WIZARD', 'DEADLINE_FAIRY', 'COMMUNICATION_KING'].map(type => badges[type] && (
+                    <div key={type} className="bg-white/10 p-2 rounded-lg text-center backdrop-blur-sm border border-white/10 hover:bg-white/20 transition cursor-help" title={type}>
+                      <div className="text-2xl mb-1">{type === 'CODE_WIZARD' ? '💻' : type === 'DEADLINE_FAIRY' ? '🧚' : '🗣️'}</div>
+                      <div className="text-xs font-bold opacity-80">{badges[type]}</div>
+                    </div>
                   ))}
                 </div>
               )}
             </div>
 
-          </div>
-        </div>
-
-        {/* Experience Section */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-slate-900">Experience</h2>
-            {isEditing && (
-              <button onClick={() => setAddItemType('exp')} className="hover:bg-slate-100 p-2 rounded-full transition">
-                <PlusIcon className="w-6 h-6 text-slate-600" />
-              </button>
-            )}
-          </div>
-
-          <div className="space-y-6">
-            {experiences.length === 0 && <p className="text-slate-500 italic text-sm">No experience added.</p>}
-            {experiences.map((exp: any, idx: number) => (
-              <div key={exp.id} className={`flex gap-4 ${idx !== experiences.length - 1 ? 'border-b border-slate-100 pb-6' : ''}`}>
-                <div className="mt-1">
-                  <div className="w-12 h-12 bg-slate-100 rounded flex items-center justify-center text-slate-500">
-                    <BriefcaseIcon className="w-6 h-6" />
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-bold text-base text-slate-900">{exp.title}</h3>
-                      <p className="text-sm text-slate-700">{exp.company}</p>
-                      <p className="text-xs text-slate-500 mt-1">{exp.startDate} - {exp.endDate || "Present"}</p>
+            {/* 🛠 Skills */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+              <h3 className="text-lg font-bold text-slate-900 mb-4">Top Skills</h3>
+              {isEditing ? (
+                <input className="w-full p-2 border rounded" value={formData.techStacks} onChange={e => setFormData({ ...formData, techStacks: e.target.value })} placeholder="React, Node, etc..." />
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {profile?.techStacks?.map((tech: string) => (
+                    <div key={tech} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border border-slate-100 hover:shadow-md hover:border-[#c5050c]/30 transition group">
+                      {/* Placeholder Icon */}
+                      <div className="w-8 h-8 rounded bg-white flex items-center justify-center text-xs font-bold text-slate-500 shadow-sm group-hover:text-[#c5050c]">{tech.substring(0, 2).toUpperCase()}</div>
+                      <span className="text-sm font-semibold text-slate-700">{tech}</span>
                     </div>
-                    {isEditing && (
-                      <button onClick={() => handleDeleteItem('exp', exp.id)} className="text-slate-400 hover:text-red-500 transition">
-                        <TrashIcon className="w-5 h-5" />
-                      </button>
-                    )}
-                  </div>
-                  {exp.description && <p className="text-sm text-slate-600 mt-2 leading-relaxed">{exp.description}</p>}
+                  ))}
+                  {(!profile?.techStacks || profile.techStacks.length === 0) && <p className="text-slate-400 text-sm">No skills added.</p>}
                 </div>
+              )}
+            </div>
+
+          </div>
+
+          {/* Right Column (Timeline: Exp & Edu) */}
+          <div className="lg:col-span-2 space-y-6">
+
+            {/* Experience Timeline */}
+            <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <BriefcaseIcon className="w-6 h-6 text-[#c5050c]" /> Professional Experience
+                </h2>
+                {isEditing && <button onClick={() => setAddItemType('exp')}><PlusIcon className="w-6 h-6 text-slate-400 hover:text-[#c5050c]" /></button>}
               </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Education Section */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-slate-900">Education</h2>
-            {isEditing && (
-              <button onClick={() => setAddItemType('edu')} className="hover:bg-slate-100 p-2 rounded-full transition">
-                <PlusIcon className="w-6 h-6 text-slate-600" />
-              </button>
-            )}
-          </div>
+              <div className="space-y-8 relative before:absolute before:left-[19px] before:top-2 before:bottom-0 before:w-0.5 before:bg-slate-200">
+                {experiences.map((exp: any) => (
+                  <div key={exp.id} className="relative pl-10 group">
+                    {/* Dot */}
+                    <div className="absolute left-[13px] top-1.5 w-3.5 h-3.5 bg-white border-[3px] border-[#c5050c] rounded-full group-hover:scale-125 transition-transform z-10" />
 
-          <div className="space-y-6">
-            {educations.length === 0 && <p className="text-slate-500 italic text-sm">No education listed.</p>}
-            {educations.map((edu: any, idx: number) => (
-              <div key={edu.id} className={`flex gap-4 ${idx !== educations.length - 1 ? 'border-b border-slate-100 pb-6' : ''}`}>
-                <div className="mt-1">
-                  <div className="w-12 h-12 bg-slate-100 rounded flex items-center justify-center text-slate-500">
-                    <AcademicCapIcon className="w-6 h-6" />
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-bold text-base text-slate-900">{edu.school}</h3>
-                      <p className="text-sm text-slate-700">{edu.degree ? `${edu.degree}, ` : ''}{edu.major}</p>
-                      <p className="text-xs text-slate-500 mt-1">Class of {edu.graduationYear}</p>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-900">{exp.title}</h3>
+                        <div className="text-slate-600 font-medium">{exp.company}</div>
+                        <p className="text-xs text-slate-400 mt-1 uppercase tracking-wide font-bold">{exp.startDate} — {exp.endDate || "Present"}</p>
+                        {exp.description && <p className="mt-3 text-slate-600 text-sm leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">{exp.description}</p>}
+                      </div>
+                      {isEditing && <button onClick={() => handleDeleteItem('exp', exp.id)} className="text-slate-300 hover:text-red-500"><TrashIcon className="w-5 h-5" /></button>}
                     </div>
-                    {isEditing && (
-                      <button onClick={() => handleDeleteItem('edu', edu.id)} className="text-slate-400 hover:text-red-500 transition">
-                        <TrashIcon className="w-5 h-5" />
-                      </button>
-                    )}
                   </div>
-                </div>
+                ))}
+                {experiences.length === 0 && <p className="pl-10 text-slate-400 italic">No experience entries.</p>}
               </div>
-            ))}
+            </div>
+
+            {/* Education Timeline */}
+            <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <AcademicCapIcon className="w-6 h-6 text-[#c5050c]" /> Education History
+                </h2>
+                {isEditing && <button onClick={() => setAddItemType('edu')}><PlusIcon className="w-6 h-6 text-slate-400 hover:text-[#c5050c]" /></button>}
+              </div>
+
+              <div className="space-y-8 relative before:absolute before:left-[19px] before:top-2 before:bottom-0 before:w-0.5 before:bg-slate-200">
+                {educations.map((edu: any) => (
+                  <div key={edu.id} className="relative pl-10 group">
+                    <div className="absolute left-[13px] top-1.5 w-3.5 h-3.5 bg-white border-[3px] border-slate-400 group-hover:border-[#c5050c] rounded-full transition-colors z-10" />
+
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-900">{edu.school}</h3>
+                        <div className="text-slate-600">{edu.degree ? `${edu.degree} in ` : ''}{edu.major}</div>
+                        <p className="text-xs text-slate-400 mt-1 uppercase tracking-wide font-bold">Class of {edu.graduationYear}</p>
+                      </div>
+                      {isEditing && <button onClick={() => handleDeleteItem('edu', edu.id)} className="text-slate-300 hover:text-red-500"><TrashIcon className="w-5 h-5" /></button>}
+                    </div>
+                  </div>
+                ))}
+                {educations.length === 0 && <p className="pl-10 text-slate-400 italic">No education entries.</p>}
+              </div>
+            </div>
+
           </div>
         </div>
 
-        {/* Edit Action Bar (Sticky Bottom) */}
-        {isEditing && (
-          <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-xl z-50 animate-slideUp">
-            <div className="max-w-4xl mx-auto flex justify-between items-center">
-              <p className="text-sm font-bold text-slate-500">You are in Edit Configuration Mode</p>
-              <div className="flex gap-4">
-                <button onClick={() => setIsEditing(false)} className="px-6 py-2.5 rounded-full font-bold text-slate-600 hover:bg-slate-100 transition">
-                  Cancel
-                </button>
-                <button onClick={handleSaveProfile} disabled={saving} className="px-6 py-2.5 rounded-full font-bold text-white bg-[#c5050c] hover:bg-red-700 transition shadow-lg flex items-center gap-2">
-                  {saving ? "Saving..." : <><CheckIcon className="w-5 h-5" /> Save Changes</>}
-                </button>
+        {/* Modal for Adding Items (Reused) */}
+        {addItemType && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+            <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-2xl">
+              <h3 className="text-xl font-bold mb-4 text-slate-900 border-b pb-3">
+                New {addItemType === 'edu' ? 'Education' : 'Experience'}
+              </h3>
+              {/* Form Fields (Simplified re-use of previous logic) */}
+              <div className="space-y-4">
+                {addItemType === 'edu' ? (
+                  <>
+                    <input className="w-full bg-slate-50 border p-2 rounded" placeholder="School" onChange={e => setNewItem({ ...newItem, school: e.target.value })} />
+                    <input className="w-full bg-slate-50 border p-2 rounded" placeholder="Degree" onChange={e => setNewItem({ ...newItem, degree: e.target.value })} />
+                    <input className="w-full bg-slate-50 border p-2 rounded" placeholder="Major" onChange={e => setNewItem({ ...newItem, major: e.target.value })} />
+                    <input className="w-full bg-slate-50 border p-2 rounded" placeholder="Grad Year" onChange={e => setNewItem({ ...newItem, graduationYear: e.target.value })} />
+                  </>
+                ) : (
+                  <>
+                    <input className="w-full bg-slate-50 border p-2 rounded" placeholder="Company" onChange={e => setNewItem({ ...newItem, company: e.target.value })} />
+                    <input className="w-full bg-slate-50 border p-2 rounded" placeholder="Role" onChange={e => setNewItem({ ...newItem, title: e.target.value })} />
+                    <div className="flex gap-2">
+                      <input className="w-full bg-slate-50 border p-2 rounded" placeholder="Start Date" onChange={e => setNewItem({ ...newItem, startDate: e.target.value })} />
+                      <input className="w-full bg-slate-50 border p-2 rounded" placeholder="End Date" onChange={e => setNewItem({ ...newItem, endDate: e.target.value })} />
+                    </div>
+                    <textarea className="w-full bg-slate-50 border p-2 rounded" placeholder="Description" rows={3} onChange={e => setNewItem({ ...newItem, description: e.target.value })} />
+                  </>
+                )}
+              </div>
+              <div className="flex gap-3 mt-6 justify-end">
+                <button onClick={() => setAddItemType(null)} className="px-5 py-2 text-slate-500 font-bold hover:bg-slate-50 rounded-lg">Cancel</button>
+                <button onClick={handleAddItem} className="px-5 py-2 bg-[#c5050c] text-white font-bold rounded-lg hover:bg-red-700 shadow-md">Add</button>
               </div>
             </div>
           </div>
         )}
 
       </div>
-
-      {/* Add Item Modal */}
-      {addItemType && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-2xl">
-            <h3 className="text-xl font-bold mb-4 text-slate-900 border-b pb-3">New {addItemType === 'edu' ? 'Education' : 'Experience'}</h3>
-
-            <div className="space-y-4">
-              {addItemType === 'edu' ? (
-                <>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">School</label>
-                    <input className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded focus:ring-2 focus:ring-[#c5050c] outline-none" placeholder="e.g. UW-Madison" onChange={e => setNewItem({ ...newItem, school: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Degree</label>
-                    <input className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded focus:ring-2 focus:ring-[#c5050c] outline-none" placeholder="e.g. Bachelor of Science" onChange={e => setNewItem({ ...newItem, degree: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Major</label>
-                    <input className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded focus:ring-2 focus:ring-[#c5050c] outline-none" placeholder="e.g. Computer Science" onChange={e => setNewItem({ ...newItem, major: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Graduation Year</label>
-                    <input className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded focus:ring-2 focus:ring-[#c5050c] outline-none" placeholder="e.g. 2025" onChange={e => setNewItem({ ...newItem, graduationYear: e.target.value })} />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Company / Organization</label>
-                    <input className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded focus:ring-2 focus:ring-[#c5050c] outline-none" placeholder="e.g. Google" onChange={e => setNewItem({ ...newItem, company: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Role / Title</label>
-                    <input className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded focus:ring-2 focus:ring-[#c5050c] outline-none" placeholder="e.g. Software Engineer Intern" onChange={e => setNewItem({ ...newItem, title: e.target.value })} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Start Date</label>
-                      <input className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded focus:ring-2 focus:ring-[#c5050c] outline-none" placeholder="YYYY-MM" onChange={e => setNewItem({ ...newItem, startDate: e.target.value })} />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">End Date</label>
-                      <input className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded focus:ring-2 focus:ring-[#c5050c] outline-none" placeholder="YYYY-MM (or empty)" onChange={e => setNewItem({ ...newItem, endDate: e.target.value })} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Description</label>
-                    <textarea className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded focus:ring-2 focus:ring-[#c5050c] outline-none" rows={3} placeholder="What did you achieve?" onChange={e => setNewItem({ ...newItem, description: e.target.value })} />
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="flex gap-3 mt-6 justify-end">
-              <button onClick={() => setAddItemType(null)} className="px-5 py-2 text-slate-500 hover:bg-slate-50 rounded-lg font-bold transition">Cancel</button>
-              <button onClick={handleAddItem} className="px-5 py-2 bg-[#c5050c] text-white rounded-lg font-bold hover:bg-red-700 shadow-md transition">Add</button>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

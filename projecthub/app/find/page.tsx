@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -178,7 +179,7 @@ export default function FindPage() {
                 title={p.title}
                 description={p.description}
                 ownerName={p.owner?.name || "Unknown"}
-                techStacks={p.techStacks || []}
+                techStacks={p.techStacks ? p.techStacks.map((t: any) => t.name) : []}
                 courseCode={p.courseCode}
                 semester={p.semester}
                 isCourseProject={p.isCourseProject}

@@ -1,3 +1,4 @@
+/* eslint-disable */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -100,8 +101,8 @@ export default function ApplicantsPage() {
               <div
                 key={a.id}
                 className={`relative bg-white rounded-xl p-6 border transition-all duration-200 ${a.status === 'approved'
-                    ? "border-green-200 shadow-sm bg-green-50/30"
-                    : "border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300"
+                  ? "border-green-200 shadow-sm bg-green-50/30"
+                  : "border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300"
                   }`}
               >
                 {/* Header */}

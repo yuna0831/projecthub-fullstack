@@ -15,12 +15,15 @@ app.get('/', (req, res) => {
     res.send('ProjectHub Backend API is running!');
 });
 
-// Routes
 import userRoutes from './routes/userRoutes';
 import projectRoutes from './routes/projectRoutes';
+import checklistRoutes from './routes/checklistRoutes';
+import reviewRoutes from './routes/reviewRoutes';
 
 app.use('/api/users', userRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/checklist', checklistRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // Protected Route Example
 // 이 경로는 verifyToken 미들웨어를 통과해야만 접근 가능합니다.

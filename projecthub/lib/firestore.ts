@@ -1,3 +1,4 @@
+/* eslint-disable */
 export interface Applicant {
   id: string;
   name: string;

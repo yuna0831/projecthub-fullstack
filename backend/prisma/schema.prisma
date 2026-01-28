@@ -21,6 +21,8 @@ model User {
   linkedinUrl String?
   portfolioUrl String?
   techStacks  String[] // e.g. ["React", "Python"]
+  workStyles  String[] // e.g. ["#NightOwl", "#Remote"]
+  futureRole  String?  // e.g. "Frontend Developer"
   
   profileImage String? // URL
   coverImage   String? // URL
@@ -37,6 +39,9 @@ model User {
   educations    Education[]
   
   notifications Notification[]
+  
+  givenReviews    PeerReview[] @relation("GivenReviews")
+  receivedReviews PeerReview[] @relation("ReceivedReviews")
 }
 
 model Experience {
@@ -96,6 +101,8 @@ model Project {
 
   // Relations
   roles       ProjectRole[]
+  checklistItems ChecklistItem[]
+  reviews        PeerReview[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -170,9 +177,44 @@ enum ApplicationStatus {
   REJECTED
 }
 
+
+
 enum NotificationType {
   INFO
   SUCCESS
   ERROR
   WARNING
 }
+
+enum BadgeType {
+  CODE_WIZARD
+  DEADLINE_FAIRY
+  COMMUNICATION_KING
+}
+
+model ChecklistItem {
+  id        String   @id @default(uuid())
+  content   String
+  isChecked Boolean  @default(false)
+  
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model PeerReview {
+  id         String   @id @default(uuid())
+  reviewerId String
+  revieweeId String
+  projectId  String
+  badge      BadgeType
+  comment    String?
+
+  reviewer   User     @relation("GivenReviews", fields: [reviewerId], references: [id])
+  reviewee   User     @relation("ReceivedReviews", fields: [revieweeId], references: [id])
+  project    Project  @relation(fields: [projectId], references: [id])
+
+  createdAt  DateTime @default(now())
+
+  @@unique([reviewerId, revieweeId, projectId]) // One review per pair per project
+}
+
