@@ -9,21 +9,68 @@ export default function FindPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const LIMIT = 9;
+
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
+
+  // Academic Filters
   const [filterSubject, setFilterSubject] = useState("");
   const [filterNumber, setFilterNumber] = useState("");
+
+  // Personal Filters
   const [filterCategory, setFilterCategory] = useState("");
+
+  // Status & Tab State
   const [activeTab, setActiveTab] = useState<'academic' | 'personal' | 'hackathon'>('academic');
+  const [statusFilter, setStatusFilter] = useState<'OPEN' | 'CLOSED'>('OPEN');
+
+  // Debounce Search
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPage(1); // Reset to page 1 on new search
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  // Reset page when switching tabs/filters
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab, statusFilter, filterSubject, filterNumber, filterCategory]);
 
   useEffect(() => {
     async function fetchData() {
       try {
         setLoading(true);
-        const res = await fetch('http://localhost:3001/api/projects');
+
+        const params = new URLSearchParams({
+          page: page.toString(),
+          limit: LIMIT.toString(),
+          status: statusFilter,
+          tab: activeTab
+        });
+
+        if (debouncedSearch) params.append('search', debouncedSearch);
+
+        if (activeTab === 'academic') {
+          if (filterSubject) params.append('subject', filterSubject);
+          if (filterNumber) params.append('courseNumber', filterNumber);
+        } else if (activeTab === 'personal') {
+          if (filterCategory) params.append('category', filterCategory);
+        }
+
+        const res = await fetch(`http://localhost:3001/api/projects?${params.toString()}`);
         if (!res.ok) throw new Error("Failed");
+
         const data = await res.json();
-        setProjects(data);
+        setProjects(data.projects || []);
+        setTotalPages(data.pagination?.totalPages || 1);
+
       } catch (e) {
         console.error(e);
       } finally {
@@ -31,40 +78,9 @@ export default function FindPage() {
       }
     }
     fetchData();
-  }, []);
-
-  // Filter Logic
-  const filteredProjects = projects.filter(p => {
-    let matchesTab = false;
-    if (activeTab === 'academic') matchesTab = p.isCourseProject === true;
-    else if (activeTab === 'hackathon') matchesTab = !!p.hackathonName;
-    else matchesTab = !p.isCourseProject && !p.hackathonName; // Personal
-
-    // Search by Title OR Owner Name
-    const matchesSearch = p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.owner?.name?.toLowerCase().includes(searchTerm.toLowerCase());
-
-    // Course Filters
-    let matchesCourse = true;
-    if (activeTab === 'academic') {
-      if (filterSubject && !p.courseCode?.startsWith(filterSubject)) matchesCourse = false;
-      if (filterNumber && !p.courseCode?.includes(filterNumber)) matchesCourse = false;
-    }
-
-    // Category Filter (Personal)
-    let matchesCategory = true;
-    if (activeTab === 'personal') {
-      if (filterCategory && p.category !== filterCategory) matchesCategory = false;
-    }
-
-    return matchesTab && matchesSearch && matchesCourse && matchesCategory;
-  });
+  }, [page, activeTab, statusFilter, debouncedSearch, filterSubject, filterNumber, filterCategory]);
 
   const subjects = ["COMP SCI", "ECE", "MATH", "STAT", "DS", "IS", "PSYCH", "ECON", "GEN BUS", "LSC", "ART", "OTHER"];
-
-  if (loading) {
-    // ... (loading state)
-  }
 
   return (
     <main className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 font-sans">
@@ -82,32 +98,35 @@ export default function FindPage() {
           {/* TABS */}
           <div className="flex justify-center mt-8 mb-6">
             <div className="bg-white p-1 rounded-xl shadow-sm border border-slate-200 inline-flex">
+              {['academic', 'hackathon', 'personal'].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab as any)}
+                  className={`px-6 py-2.5 rounded-lg text-sm font-bold capitalize transition-all ${activeTab === tab
+                    ? "bg-[#c5050c] text-white shadow-md"
+                    : "text-slate-500 hover:bg-slate-50"
+                    }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Status Filter Toggle */}
+          <div className="flex justify-center mb-8">
+            <div className="bg-slate-200 p-1 rounded-lg inline-flex">
               <button
-                onClick={() => setActiveTab('academic')}
-                className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'academic'
-                  ? "bg-[#c5050c] text-white shadow-md"
-                  : "text-slate-500 hover:bg-slate-50"
-                  }`}
+                onClick={() => setStatusFilter('OPEN')}
+                className={`px-4 py-1.5 rounded-md text-xs font-bold transition ${statusFilter === 'OPEN' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
-                Academic
+                Recruiting (Open)
               </button>
               <button
-                onClick={() => setActiveTab('hackathon')}
-                className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'hackathon'
-                  ? "bg-[#c5050c] text-white shadow-md"
-                  : "text-slate-500 hover:bg-slate-50"
-                  }`}
+                onClick={() => setStatusFilter('CLOSED')}
+                className={`px-4 py-1.5 rounded-md text-xs font-bold transition ${statusFilter === 'CLOSED' ? 'bg-white text-red-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
-                Hackathon
-              </button>
-              <button
-                onClick={() => setActiveTab('personal')}
-                className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'personal'
-                  ? "bg-[#c5050c] text-white shadow-md"
-                  : "text-slate-500 hover:bg-slate-50"
-                  }`}
-              >
-                Personal
+                Closed (Ends in 7 days)
               </button>
             </div>
           </div>
@@ -143,7 +162,7 @@ export default function FindPage() {
                 <div className="relative w-[100px]">
                   <input
                     type="text"
-                    placeholder="No. (e.g 577)"
+                    placeholder="No. (577)"
                     value={filterNumber}
                     onChange={e => setFilterNumber(e.target.value)}
                     className="w-full px-3 py-3 rounded-xl border border-slate-200 shadow-sm focus:ring-2 focus:ring-[#c5050c] outline-none text-sm text-center"
@@ -170,28 +189,54 @@ export default function FindPage() {
         </header>
 
         {/* Projects Grid */}
-        {filteredProjects.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProjects.map((p) => (
-              <RecruitCard
-                key={p.id}
-                id={p.id}
-                title={p.title}
-                description={p.description}
-                ownerName={p.owner?.name || "Unknown"}
-                techStacks={p.techStacks ? p.techStacks.map((t: any) => t.name) : []}
-                courseCode={p.courseCode}
-                semester={p.semester}
-                isCourseProject={p.isCourseProject}
-                roles={p.roles || []}
-                hackathonName={p.hackathonName}
-                hackathonDate={p.hackathonDate}
-              />
-            ))}
-          </div>
+        {loading ? (
+          <div className="text-center py-20 text-slate-400">Loading projects...</div>
+        ) : projects.length > 0 ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+              {projects.map((p) => (
+                <RecruitCard
+                  key={p.id}
+                  id={p.id}
+                  title={p.title}
+                  description={p.description}
+                  ownerName={p.owner?.name || "Unknown"}
+                  techStacks={p.techStacks ? p.techStacks.map((t: any) => t.name) : []}
+                  courseCode={p.courseCode}
+                  semester={p.semester}
+                  isCourseProject={p.isCourseProject}
+                  roles={p.roles || []}
+                  hackathonName={p.hackathonName}
+                  hackathonDate={p.hackathonDate}
+                  status={p.status || 'OPEN'}
+                />
+              ))}
+            </div>
+
+            {/* Pagination UI */}
+            <div className="flex justify-center items-center gap-4">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-4 py-2 border rounded-lg disabled:opacity-50 hover:bg-slate-100"
+              >
+                Previous
+              </button>
+              <span className="text-sm font-bold text-slate-700">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-4 py-2 border rounded-lg disabled:opacity-50 hover:bg-slate-100"
+              >
+                Next
+              </button>
+            </div>
+          </>
         ) : (
           <div className="text-center py-24 bg-white rounded-2xl border border-slate-100 shadow-sm">
-            <p className="text-slate-400 font-bold text-lg mb-2">No projects found matching your {activeTab} search.</p>
+            <p className="text-slate-400 font-bold text-lg mb-2">No projects found matching your search.</p>
             <button onClick={() => { setSearchTerm(""); setFilterSubject(""); setFilterNumber(""); setFilterCategory(""); }} className="text-[#c5050c] font-bold hover:underline">
               Clear Filters
             </button>

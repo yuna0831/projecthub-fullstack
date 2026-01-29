@@ -87,6 +87,26 @@ export default function DashboardPage() {
         }
     };
 
+    const handleCompleteProject = async (projectId: string) => {
+        if (!confirm("Are you sure you want to mark this project as COMPLETED? This will allow peer reviews.")) return;
+
+        try {
+            const token = await user?.getIdToken();
+            const res = await fetch(`http://localhost:3001/api/projects/${projectId}/complete`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!res.ok) throw new Error('Failed to complete project');
+
+            // Refresh
+            fetchDashboardData();
+        } catch (e) {
+            console.error(e);
+            alert("Failed to complete project");
+        }
+    };
+
     if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
 
     return (
@@ -128,7 +148,9 @@ export default function DashboardPage() {
                             <div key={project.id} className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
-                                        <h3 className="text-lg font-bold text-slate-900">{project.title}</h3>
+                                        <Link href={`/project/${project.id}`} className="text-lg font-bold text-slate-900 hover:text-[#c5050c] hover:underline transition">
+                                            {project.title}
+                                        </Link>
                                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${project.status === 'OPEN' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
                                             {project.status}
                                         </span>
@@ -136,14 +158,27 @@ export default function DashboardPage() {
                                     <p className="text-sm text-slate-500 line-clamp-1">{project.description}</p>
                                 </div>
 
-                                <button
-                                    onClick={() => handleOpenApplicants(project)}
-                                    className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 hover:bg-slate-100 flex items-center gap-2"
-                                >
-                                    <UserGroupIcon className="w-5 h-5" />
-                                    {project._count.applications} Applicants
-                                    <ChevronRightIcon className="w-4 h-4" />
-                                </button>
+                                {project.status === 'CLOSED' ? (
+                                    <button
+                                        onClick={() => handleCompleteProject(project.id)}
+                                        className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition flex items-center gap-2 shadow-sm"
+                                    >
+                                        <CheckCircleIcon className="w-5 h-5" /> Mark as Completed
+                                    </button>
+                                ) : project.status === 'COMPLETED' ? (
+                                    <span className="px-4 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-bold flex items-center gap-2 border border-green-200">
+                                        <CheckCircleIcon className="w-5 h-5" /> Completed
+                                    </span>
+                                ) : (
+                                    <button
+                                        onClick={() => handleOpenApplicants(project)}
+                                        className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                                    >
+                                        <UserGroupIcon className="w-5 h-5" />
+                                        {project._count.applications} Applicants
+                                        <ChevronRightIcon className="w-4 h-4" />
+                                    </button>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -158,7 +193,9 @@ export default function DashboardPage() {
                         {data.myApplications.map(app => (
                             <div key={app.id} className="bg-white rounded-xl border border-slate-200 p-6 flex items-center justify-between">
                                 <div>
-                                    <h3 className="text-lg font-bold text-slate-900 mb-1">{app.project.title}</h3>
+                                    <Link href={`/project/${app.project.id}`} className="text-lg font-bold text-slate-900 mb-1 hover:text-[#c5050c] hover:underline block transition">
+                                        {app.project.title}
+                                    </Link>
                                     <p className="text-xs text-slate-400">Applied on {new Date(app.createdAt).toLocaleDateString()}</p>
                                 </div>
                                 <div className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5
@@ -195,7 +232,9 @@ export default function DashboardPage() {
                                         <div key={app.id} className="border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
                                             <div className="flex justify-between items-start mb-4">
                                                 <div>
-                                                    <h3 className="font-bold text-lg text-slate-900">{app.user.name}</h3>
+                                                    <a href={`/profile/${app.user.id}`} className="font-bold text-lg text-slate-900 hover:text-[#c5050c] hover:underline" target="_blank">
+                                                        {app.user.name}
+                                                    </a>
                                                     <p className="text-sm text-slate-500">{app.user.major} • {app.user.year}</p>
                                                     <a href={`mailto:${app.user.email}`} className="text-xs text-blue-600 hover:underline">{app.user.email}</a>
                                                 </div>

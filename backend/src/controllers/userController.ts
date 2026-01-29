@@ -118,7 +118,7 @@ export const updateApplicationStatus = async (req: Request, res: Response) => {
     // 🔔 Notify Applicant
     const message = status === 'ACCEPTED'
       ? `🎉 Congratulations! You were accepted to "${application.project.title}".`
-      : `Update on your application for "${application.project.title}".`;
+      : `🚫 Your application for "${application.project.title}" was not successful.`;
 
     await prisma.notification.create({
       data: {
@@ -128,6 +128,51 @@ export const updateApplicationStatus = async (req: Request, res: Response) => {
         link: `/dashboard`
       }
     });
+
+    // 🔒 Rigid Completion Logic: Check if all roles are filled
+    if (status === 'ACCEPTED') {
+      const projectWithRoles = await prisma.project.findUnique({
+        where: { id: application.projectId },
+        include: {
+          roles: true,
+          applications: {
+            where: { status: 'ACCEPTED' }
+          }
+        }
+      });
+
+      if (projectWithRoles) {
+        let allFilled = true;
+
+        // Check each role
+        for (const role of projectWithRoles.roles) {
+          const acceptedCount = projectWithRoles.applications.filter(app => app.roleName === role.name).length;
+          if (acceptedCount < role.count) {
+            allFilled = false;
+            break;
+          }
+        }
+
+        if (allFilled) {
+          // Close Project
+          await prisma.project.update({
+            where: { id: application.projectId },
+            data: { status: 'CLOSED' } // Assuming 'CLOSED' is a valid enum value from Schema
+          });
+
+          // Notify Owner
+          await prisma.notification.create({
+            data: {
+              userId: projectWithRoles.ownerId,
+              message: `🏁 Project Closed: All positions for "${projectWithRoles.title}" have been filled!`,
+              type: 'SUCCESS',
+              link: `/project/${projectWithRoles.id}`
+            }
+          });
+          console.log(`Project ${projectWithRoles.id} auto-closed.`);
+        }
+      }
+    }
 
     res.json({ message: `Application ${status.toLowerCase()}`, application: updated });
 
@@ -255,10 +300,21 @@ export const getNotifications = async (req: Request, res: Response) => {
     const user = await prisma.user.findUnique({ where: { firebaseUid } });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
+    // 🕰️ Lazy Cleanup: Delete notifications older than 14 days
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+    await prisma.notification.deleteMany({
+      where: {
+        userId: user.id,
+        createdAt: { lt: twoWeeksAgo }
+      }
+    });
+
     const notifications = await prisma.notification.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
-      take: 20 // Limit to last 20
+      take: 20 // Limit to recent 20
     });
 
     res.json(notifications);
@@ -287,5 +343,30 @@ export const markNotificationRead = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Mark Read Error:", error);
     res.status(500).json({ error: 'Failed' });
+  }
+};
+
+// 🔍 Get User Profile by ID (Public Read-Only)
+export const getUserById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const user = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        experiences: true,
+        educations: true,
+        // Calculate badges or fetch them? Assuming badges are fetched separately or we can include counts.
+        // For now, simple profile data.
+      }
+    });
+
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Remove sensitive data if needed, but for this platform email seems public-ish for networking?
+    // Let's keep it simple.
+    res.json(user);
+  } catch (error) {
+    console.error("Get User Error:", error);
+    res.status(500).json({ error: 'Failed to fetch user' });
   }
 };

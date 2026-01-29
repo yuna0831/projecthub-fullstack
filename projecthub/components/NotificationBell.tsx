@@ -28,8 +28,11 @@ export default function NotificationBell() {
             });
             if (res.ok) {
                 const data = await res.json();
+                console.log("Fetched notifications:", data.length);
                 setNotifications(data);
                 setHasUnread(data.some((n: MyNotification) => !n.read));
+            } else {
+                console.error("Fetch notifications failed status:", res.status);
             }
         } catch (e) {
             console.error("Failed to fetch notifications", e);
@@ -40,7 +43,7 @@ export default function NotificationBell() {
     useEffect(() => {
         if (!user) return;
         fetchNotifications(); // Initial
-        const interval = setInterval(fetchNotifications, 60000);
+        const interval = setInterval(fetchNotifications, 5000); // Poll every 5 seconds
         return () => clearInterval(interval);
     }, [user]);
 

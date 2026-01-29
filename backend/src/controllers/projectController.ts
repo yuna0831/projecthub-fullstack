@@ -137,28 +137,86 @@ export const updateProject = async (req: Request, res: Response) => {
     }
 };
 
-// 🦡 Get Projects (Public) - Includes Lazy Expiration Check
+// 🦡 Get Projects (Public) - Includes Lazy Expiration Check & Pagination
 export const getProjects = async (req: Request, res: Response) => {
     try {
-        // 🕰️ Lazy Expiration: Close accumulated expired projects
+        // 🗑️ Lazy Deletion & Expiration (Keep existing logic)
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        await prisma.project.deleteMany({
+            where: { status: 'CLOSED', updatedAt: { lt: sevenDaysAgo } }
+        });
         await prisma.project.updateMany({
-            where: {
-                status: 'OPEN',
-                deadline: { lt: new Date() } // Deadline has passed
-            },
+            where: { status: 'OPEN', deadline: { lt: new Date() } },
             data: { status: 'CLOSED' }
         });
 
-        const projects = await prisma.project.findMany({
-            include: {
-                techStacks: true,
-                owner: {
-                    select: { name: true, email: true }
-                }
-            },
-            orderBy: { createdAt: 'desc' }
+        // 🔍 Filter & Pagination Logic
+        const page = Number(req.query.page) || 1;
+        const limit = Number(req.query.limit) || 9;
+        const skip = (page - 1) * limit;
+
+        const {
+            search, status, tab,
+            subject, courseNumber, // Academic
+            category // Personal
+        } = req.query as any;
+
+        const whereClause: any = {};
+
+        // 1. Status Filter
+        // Default to 'OPEN' if not specified, unless they explicitly want 'CLOSED'
+        // If query is sent at all by frontend, we respect it.
+        // Frontend default state is 'OPEN'.
+        if (status) whereClause.status = status;
+        else whereClause.status = 'OPEN';
+
+        // 2. Search (Title or Owner Name)
+        if (search) {
+            whereClause.OR = [
+                { title: { contains: search, mode: 'insensitive' } },
+                { owner: { name: { contains: search, mode: 'insensitive' } } }
+            ];
+        }
+
+        // 3. Tabs (Academic / Hackathon / Personal)
+        if (tab === 'academic') {
+            whereClause.isCourseProject = true;
+            if (subject) whereClause.courseCode = { startsWith: subject };
+            if (courseNumber) whereClause.courseCode = { contains: courseNumber };
+        } else if (tab === 'hackathon') {
+            whereClause.hackathonName = { not: null };
+        } else if (tab === 'personal') {
+            whereClause.isCourseProject = false;
+            whereClause.hackathonName = null;
+            if (category) whereClause.category = category;
+        }
+
+        // Execute Queries
+        const [totalCount, projects] = await prisma.$transaction([
+            prisma.project.count({ where: whereClause }),
+            prisma.project.findMany({
+                where: whereClause,
+                include: {
+                    techStacks: true,
+                    owner: { select: { name: true, email: true } }
+                },
+                orderBy: { createdAt: 'desc' },
+                skip,
+                take: limit
+            })
+        ]);
+
+        res.json({
+            projects,
+            pagination: {
+                totalCount,
+                totalPages: Math.ceil(totalCount / limit),
+                currentPage: page,
+                limit
+            }
         });
-        res.json(projects);
+
     } catch (error) {
         console.error('Error fetching projects:', error);
         res.status(500).json({ error: 'Failed to fetch projects' });
@@ -192,7 +250,7 @@ export const getProjectById = async (req: Request, res: Response) => {
 export const applyToProject = async (req: Request, res: Response) => {
     try {
         const { id } = req.params; // Project ID
-        const { message, resumeUrl, role } = req.body; // Optional message/resume/role
+        const { message, resumeUrl, roleName } = req.body; // Optional message/resume/roleName
         const firebaseUid = req.user?.uid;
 
         if (!firebaseUid) return res.status(401).json({ error: 'Unauthorized' });
@@ -224,17 +282,30 @@ export const applyToProject = async (req: Request, res: Response) => {
                 projectId: id,
                 userId: user.id,
                 message,
-                resumeUrl
+                resumeUrl,
+                roleName // Save the selected role name
             }
         });
 
         // 🔔 Notify Project Owner
+        console.log(`Creating notification for Owner: ${project.ownerId}`);
         await prisma.notification.create({
             data: {
                 userId: project.ownerId,
                 message: `📢 New Applicant: ${user.name} applied to "${project.title}"`,
                 type: 'INFO',
                 link: `/project/${project.id}`
+            }
+        });
+
+        // 🔔 Notify Applicant (Confirmation)
+        console.log(`Creating notification for Applicant: ${user.id}`);
+        await prisma.notification.create({
+            data: {
+                userId: user.id,
+                message: `✅ You successfully applied to "${project.title}"`,
+                type: 'SUCCESS',
+                link: `/dashboard`
             }
         });
 
@@ -301,9 +372,59 @@ export const checkApplicationStatus = async (req: Request, res: Response) => {
             }
         });
 
-        res.json({ applied: !!application });
+        res.json({
+            applied: !!application,
+            status: application?.status // PENDING, ACCEPTED, REJECTED
+        });
     } catch (error) {
         console.error("Check Status Error:", error);
         res.status(500).json({ error: 'Failed to check status' });
+    }
+};
+
+// 🏁 Mark Project as Completed
+export const completeProject = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const firebaseUid = req.user?.uid;
+
+        if (!firebaseUid) return res.status(401).json({ error: 'Unauthorized' });
+
+        const user = await prisma.user.findUnique({ where: { firebaseUid } });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const project = await prisma.project.findUnique({ where: { id } });
+        if (!project) return res.status(404).json({ error: 'Project not found' });
+
+        if (project.ownerId !== user.id) {
+            return res.status(403).json({ error: 'Only the project owner can mark it as completed' });
+        }
+
+        const updated = await prisma.project.update({
+            where: { id },
+            data: { status: 'COMPLETED' }
+        });
+
+        // Notify all accepted applicants
+        const acceptedApps = await prisma.application.findMany({
+            where: { projectId: id, status: 'ACCEPTED' },
+            include: { user: true }
+        });
+
+        for (const app of acceptedApps) {
+            await prisma.notification.create({
+                data: {
+                    userId: app.userId,
+                    message: `🏆 "${project.title}" is now completed! You can now leave peer reviews.`,
+                    type: 'SUCCESS',
+                    link: `/project/${id}/reviews`
+                }
+            });
+        }
+
+        res.json(updated);
+    } catch (error) {
+        console.error("Complete Project Error:", error);
+        res.status(500).json({ error: 'Failed to complete project' });
     }
 };

@@ -1,6 +1,6 @@
 import express from 'express';
 import { verifyToken } from '../middleware/auth';
-import { syncUser, getDashboardData, updateApplicationStatus, updateProfile, addEducation, addExperience, deleteProfileItem, getNotifications, markNotificationRead } from '../controllers/userController';
+import { syncUser, getDashboardData, updateApplicationStatus, updateProfile, addEducation, addExperience, deleteProfileItem, getNotifications, markNotificationRead, getUserById } from '../controllers/userController';
 
 const router = express.Router();
 
@@ -25,7 +25,10 @@ router.post('/experience', verifyToken, addExperience);
 router.delete('/profile-item/:type/:id', verifyToken, deleteProfileItem);
 
 // 🔔 Notifications
-router.get('/notifications', verifyToken, getNotifications);
+router.get('/notifications', verifyToken, getNotifications); // Moved up
 router.put('/notifications/:id/read', verifyToken, markNotificationRead);
+
+// 🔍 Public Profile (Dynamic ID - Must be last GET)
+router.get('/:id', verifyToken, getUserById);
 
 export default router;

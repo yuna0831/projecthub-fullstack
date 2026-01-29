@@ -1,27 +1,26 @@
 import express from 'express';
 import { verifyToken } from '../middleware/auth';
-import { createProject, getProjects, getProjectById, applyToProject, getProjectApplications, updateProject, checkApplicationStatus } from '../controllers/projectController';
+import { createProject, getProjects, getProjectById, updateProject, applyToProject, getProjectApplications, checkApplicationStatus, completeProject } from '../controllers/projectController';
+import { createPeerReview, getProjectReviews } from '../controllers/reviewController';
 
 const router = express.Router();
 
-// GET /api/projects (Public)
+// 🟢 Public Routes
 router.get('/', getProjects);
-
-// GET /api/projects/:id (Public)
 router.get('/:id', getProjectById);
 
-// POST /api/projects (Protected)
+// 🔒 Protected Routes (Require Auth)
 router.post('/', verifyToken, createProject);
-
-// PUT /api/projects/:id (Protected)
 router.put('/:id', verifyToken, updateProject);
 
-// 🦡 Apply to Project
-// 🦡 Apply to Project
-router.post('/:id/apply', verifyToken, applyToProject);
-router.get('/:id/application-status', verifyToken, checkApplicationStatus);
+// 📝 Applications
+router.post('/:id/apply', verifyToken, applyToProject); // User applies
+router.get('/:id/applications', verifyToken, getProjectApplications); // Owner views
+router.get('/:id/status', verifyToken, checkApplicationStatus); // User checks status
 
-// 🦡 Get Applications (Owner Only)
-router.get('/:id/applications', verifyToken, getProjectApplications);
+// 🏁 Completion & Reviews
+router.put('/:id/complete', verifyToken, completeProject); // Mark as Completed
+router.post('/:projectId/reviews', verifyToken, createPeerReview); // Peer Review
+router.get('/:projectId/reviews', verifyToken, getProjectReviews);
 
 export default router;

@@ -7,9 +7,10 @@ import { useAuth } from "../../../context/UserContext";
 import ReactMarkdown from "react-markdown";
 import {
   BriefcaseIcon, MapPinIcon, ClockIcon,
-  CheckCircleIcon, UserGroupIcon, CalendarIcon, ServerIcon
+  CheckCircleIcon, UserGroupIcon, CalendarIcon, ServerIcon, XCircleIcon
 } from "@heroicons/react/24/outline";
 import ReviewModal from "../../../components/ReviewModal";
+import ApplyModal from "../../../components/ApplyModal";
 
 
 export default function ProjectDetailPage() {
@@ -19,6 +20,7 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<any>(null);
   const [applicants, setApplicants] = useState<any[]>([]);
   const [hasApplied, setHasApplied] = useState(false);
+  const [applicationStatus, setApplicationStatus] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [loading, setLoading] = useState(true);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
@@ -56,7 +58,10 @@ export default function ProjectDetailPage() {
               });
               if (statusRes.ok) {
                 const statusData = await statusRes.json();
-                if (statusData.applied) setHasApplied(true);
+                if (statusData.applied) {
+                  setHasApplied(true);
+                  setApplicationStatus(statusData.status);
+                }
               }
             } catch (e) {
               console.error("Failed to check application status", e);
@@ -73,15 +78,22 @@ export default function ProjectDetailPage() {
   }, [id, user]);
 
 
-  const handleApply = async () => {
+  const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
+
+  const handleApplyClick = () => {
     if (!user) return alert("Please sign in first.");
 
     // 🛡️ Email Verification Check
-    if (!user.emailVerified) {
-      alert("⚠️ Please verify your @wisc.edu email first via your inbox to apply.");
-      return;
-    }
+    // if (!user.emailVerified) {
+    //   alert("⚠️ Please verify your @wisc.edu email first via your inbox to apply.");
+    //   return;
+    // }
 
+    setIsApplyModalOpen(true);
+  };
+
+  const handleConfirmApply = async (roleName: string) => {
+    if (!user) return;
     const token = await user.getIdToken();
 
     try {
@@ -91,12 +103,15 @@ export default function ProjectDetailPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ message: "I am interested!" })
+        body: JSON.stringify({
+          message: "I am interested!",
+          roleName // Send selected role
+        })
       });
 
       if (res.ok) {
         setHasApplied(true);
-        alert("Successfully applied! 🚀");
+        alert(`Successfully applied as ${roleName}! 🚀`);
       } else {
         const err = await res.json();
         if (err.error?.includes("Already applied")) {
@@ -176,7 +191,7 @@ export default function ProjectDetailPage() {
 
           <div className="flex items-center gap-6 text-sm text-slate-500">
             <span className="flex items-center gap-2">
-              Posted by <span className="font-bold text-slate-800 underline decoration-slate-300 underline-offset-4">{project.owner?.name || "Unknown"}</span>
+              Posted by <a href={`/profile/${project.owner?.id}`} className="font-bold text-slate-800 underline decoration-slate-300 underline-offset-4 hover:text-[#c5050c] hover:decoration-[#c5050c] transition">{project.owner?.name || "Unknown"}</a>
             </span>
             {project.deadline && (
               <span className="flex items-center gap-1 text-[#c5050c] font-medium">
@@ -310,12 +325,22 @@ export default function ProjectDetailPage() {
                 Login to Apply
               </button>
             ) : hasApplied ? (
-              <button disabled className="w-full bg-green-50 text-green-700 border border-green-200 font-bold py-3 rounded-xl flex items-center justify-center gap-2 cursor-default">
-                <CheckCircleIcon className="w-5 h-5" /> Applied
-              </button>
+              applicationStatus === 'REJECTED' ? (
+                <button disabled className="w-full bg-red-50 text-red-700 border border-red-200 font-bold py-3 rounded-xl flex items-center justify-center gap-2 cursor-default">
+                  <XCircleIcon className="w-5 h-5" /> Rejected
+                </button>
+              ) : applicationStatus === 'ACCEPTED' ? (
+                <button disabled className="w-full bg-green-50 text-green-700 border border-green-200 font-bold py-3 rounded-xl flex items-center justify-center gap-2 cursor-default">
+                  <CheckCircleIcon className="w-5 h-5" /> Accepted
+                </button>
+              ) : (
+                <button disabled className="w-full bg-slate-100 text-slate-600 border border-slate-200 font-bold py-3 rounded-xl flex items-center justify-center gap-2 cursor-default">
+                  <CheckCircleIcon className="w-5 h-5" /> Applied
+                </button>
+              )
             ) : (
               <button
-                onClick={handleApply}
+                onClick={handleApplyClick}
                 className="w-full bg-[#c5050c] text-white font-bold py-3 rounded-xl shadow-md hover:bg-red-700 hover:shadow-red-200 transition-all active:scale-95 flex items-center justify-center gap-2"
               >
                 Apply Now
@@ -408,6 +433,13 @@ export default function ProjectDetailPage() {
         projectId={id as string}
         members={applicants.map(a => a.user)} // Pass applicants. Owner isn't in applicants list usually. Need to add owner? 
       /* Ideally we want to review anyone in the team. */
+      />
+      <ApplyModal
+        isOpen={isApplyModalOpen}
+        onClose={() => setIsApplyModalOpen(false)}
+        onConfirm={handleConfirmApply}
+        roles={project?.roles || []}
+        projectTitle={project?.title || ""}
       />
     </main>
   );

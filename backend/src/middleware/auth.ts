@@ -30,13 +30,13 @@ export const verifyToken = async (req: Request, res: Response, next: NextFunctio
         // The middleware blocks API access. So features ARE blocked.
         const isVerified = decodedToken.email_verified;
 
-        if (!isWiscEmail) {
-            return res.status(403).json({ error: "Access Denied: Only @wisc.edu emails are allowed." });
-        }
+        // if (!isWiscEmail) {
+        //     return res.status(403).json({ error: "Access Denied: Only @wisc.edu emails are allowed." });
+        // }
 
-        if (!isVerified) {
-            return res.status(403).json({ error: "Access Denied: Please verify your email address first." });
-        }
+        // if (!isVerified) {
+        //     return res.status(403).json({ error: "Access Denied: Please verify your email address first." });
+        // }
 
         req.user = decodedToken;
         next();

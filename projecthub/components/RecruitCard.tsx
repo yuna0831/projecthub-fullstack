@@ -15,6 +15,7 @@ interface RecruitCardProps {
   teamMembers?: string[]; // Optional, might be passed later
   hackathonName?: string;
   hackathonDate?: string;
+  status: string; // 'OPEN' | 'CLOSED'
 }
 
 export default function RecruitCard({
@@ -29,17 +30,25 @@ export default function RecruitCard({
   semester,
   teamMembers = [],
   hackathonName,
-  hackathonDate
+  hackathonDate,
+  status
 }: RecruitCardProps) {
 
   // Derive card type visuals
   const isAcademic = isCourseProject;
 
   return (
-    <Link href={`/project/${id}`} className={`group relative block h-full`}>
+    <Link href={`/project/${id}`} className={`group relative block h-full ${status === 'CLOSED' ? 'opacity-60 grayscale' : ''}`}>
       <div className={`h-full flex flex-col justify-between border rounded-xl p-6 bg-white transition-all duration-200 
-        ${isAcademic ? 'border-red-100 hover:border-red-300 shadow-sm hover:shadow-red-100' : 'border-slate-200 hover:border-blue-300 shadow-sm hover:shadow-md'}
+        ${status === 'CLOSED' ? 'border-slate-100 bg-slate-50' :
+          isAcademic ? 'border-red-100 hover:border-red-300 shadow-sm hover:shadow-red-100' : 'border-slate-200 hover:border-blue-300 shadow-sm hover:shadow-md'
+        }
       `}>
+        {status === 'CLOSED' && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+            <span className="bg-slate-800 text-white font-bold text-xl px-4 py-2 rounded-lg shadow-lg -rotate-12 opacity-90 border-2 border-white">CLOSED</span>
+          </div>
+        )}
 
         <div>
           {/* Top Badge area */}
@@ -60,6 +69,9 @@ export default function RecruitCard({
                 Side Project
               </span>
             )}
+
+            {/* CLOSED Badge (Overlay or separate) - Adding logic here for card visual */}
+
 
             {teamMembers.length > 0 && (
               <span className="bg-green-50 text-green-700 text-[10px] px-2 py-1 rounded-full font-semibold">
