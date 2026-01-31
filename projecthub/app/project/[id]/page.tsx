@@ -239,13 +239,17 @@ export default function ProjectDetailPage() {
 
           <div className="flex flex-wrap gap-3 mb-4">
             {/* Status Badge */}
-            {project.status === 'OPEN' ? (
+            {project.status === 'DRAFT' ? (
+              <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-bold uppercase tracking-wide border border-yellow-200">
+                Draft
+              </span>
+            ) : project.status === 'OPEN' ? (
               <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold uppercase tracking-wide flex items-center gap-1">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> Recruiting
               </span>
             ) : (
               <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-xs font-bold uppercase tracking-wide">
-                Closed
+                {project.status}
               </span>
             )}
 
@@ -399,7 +403,30 @@ export default function ProjectDetailPage() {
                 <div className="text-center text-xs text-slate-400">Owner Dashboard Active</div>
 
                 {/* Owner Actions */}
-                {completionRequested ? (
+                {project.status === 'DRAFT' ? (
+                  <button
+                    onClick={async () => {
+                      if (!user) return;
+                      if (!confirm("Are you sure you want to publish this project? It will become visible to everyone.")) return;
+                      const token = await user.getIdToken();
+                      const res = await fetch(`http://localhost:3001/api/projects/${id}/status`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ status: 'OPEN' })
+                      });
+                      if (res.ok) {
+                        setProject({ ...project, status: 'OPEN' });
+                        alert("Project Published! 🚀");
+                      } else {
+                        const err = await res.json();
+                        alert(`Failed to publish: ${err.error || res.statusText}`);
+                      }
+                    }}
+                    className="w-full bg-green-600 text-white font-bold py-3 rounded-xl shadow-md hover:bg-green-700 transition"
+                  >
+                    🚀 Publish Project
+                  </button>
+                ) : completionRequested ? (
                   <button disabled className="w-full bg-yellow-100 text-yellow-700 font-bold py-3 rounded-xl cursor-default border border-yellow-200">
                     Waiting for Confirmation...
                   </button>

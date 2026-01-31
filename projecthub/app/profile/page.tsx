@@ -12,7 +12,6 @@ import {
   AcademicCapIcon,
   PlusIcon,
   CameraIcon,
-
   CheckIcon
 } from "@heroicons/react/24/outline";
 
@@ -40,10 +39,10 @@ export default function ProfilePage() {
     githubUrl: "", linkedinUrl: "", portfolioUrl: "",
     techStacks: "", profileImage: "", coverImage: "",
     workStyles: [] as string[], futureRole: "",
-    kakaoId: "", discordId: "" // 🆕
+    contactEmail: "", discordId: ""
   });
 
-  const [isContactVisible, setIsContactVisible] = useState(false); // 🆕
+  const [isContactVisible, setIsContactVisible] = useState(false);
 
   const [newItem, setNewItem] = useState<any>({});
   const [badges, setBadges] = useState<any>({});
@@ -51,11 +50,8 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user) {
       fetchProfile();
-
     }
   }, [user]);
-
-
 
   async function fetchProfile() {
     try {
@@ -79,7 +75,7 @@ export default function ProfilePage() {
       setProfile(userData);
       setEducations(userData.educations || []);
       setExperiences(userData.experiences || []);
-      setIsContactVisible(userData.isContactVisible || false); // 🆕
+      setIsContactVisible(userData.isContactVisible || false);
 
       // Fetch Badges
       if (userData.id) {
@@ -102,8 +98,8 @@ export default function ProfilePage() {
         coverImage: userData.coverImage || "",
         workStyles: userData.workStyles || [],
         futureRole: userData.futureRole || "",
-        kakaoId: userData.kakaoId || "",    // 🆕
-        discordId: userData.discordId || "" // 🆕
+        contactEmail: userData.contactEmail || "",
+        discordId: userData.discordId || ""
       });
     } catch (e) {
       console.error(e);
@@ -227,8 +223,6 @@ export default function ProfilePage() {
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading Profile...</div>;
   if (!user) return <div className="min-h-screen flex items-center justify-center">Please log in</div>;
 
-
-
   return (
     <main className="min-h-screen bg-[#F3F2EF] py-8 px-4 font-sans text-slate-900">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -310,10 +304,10 @@ export default function ProfilePage() {
                         </div>
                       )}
 
-                      {/* Contact IDs Display (My Profile always sees them, but visualize visibility) */}
-                      {(profile?.kakaoId || profile?.discordId) && (
+                      {/* Contact IDs Display */}
+                      {(profile?.contactEmail || profile?.discordId) && (
                         <div className="mt-4 flex gap-4 text-sm font-medium text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-100 inline-flex">
-                          {profile.kakaoId && <span className="flex items-center gap-1">💬 Kakao: {profile.kakaoId}</span>}
+                          {profile.contactEmail && <span className="flex items-center gap-1">📧 Email: {profile.contactEmail}</span>}
                           {profile.discordId && <span className="flex items-center gap-1">🎮 Discord: {profile.discordId}</span>}
                         </div>
                       )}
@@ -399,7 +393,7 @@ export default function ProfilePage() {
 
                   <div className="pt-2 border-t border-slate-200 mt-2">
                     <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Direct Contact (Private)</label>
-                    <input className="w-full text-sm p-2 border rounded mb-2" placeholder="KakaoTalk ID" value={formData.kakaoId} onChange={e => setFormData({ ...formData, kakaoId: e.target.value })} />
+                    <input className="w-full text-sm p-2 border rounded mb-2" placeholder="Contact Email" value={formData.contactEmail} onChange={e => setFormData({ ...formData, contactEmail: e.target.value })} />
                     <input className="w-full text-sm p-2 border rounded" placeholder="Discord ID" value={formData.discordId} onChange={e => setFormData({ ...formData, discordId: e.target.value })} />
                     <p className="text-[10px] text-slate-400 mt-1">These will only be visible if you enable &quot;Contact Visibility&quot;.</p>
                   </div>
@@ -424,8 +418,6 @@ export default function ProfilePage() {
 
           {/* Left Column (Stats, Badges, Skills) */}
           <div className="space-y-6">
-
-
 
             {/* 🏆 Badges */}
             <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-6 rounded-xl shadow-lg relative overflow-hidden">

@@ -23,8 +23,9 @@ model User {
   techStacks  String[] // e.g. ["React", "Python"]
   workStyles  String[] // e.g. ["#NightOwl", "#Remote"]
   futureRole  String?  // e.g. "Frontend Developer"
-  kakaoId     String?
-  discordId   String?
+  
+  contactEmail String? // 🆕 Replaces kakaoId
+  discordId    String?
   
   profileImage String? // URL
   coverImage   String? // URL

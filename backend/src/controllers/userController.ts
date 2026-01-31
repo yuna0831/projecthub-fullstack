@@ -189,7 +189,7 @@ export const updateProfile = async (req: Request, res: Response) => {
     const {
       bio, githubUrl, linkedinUrl, portfolioUrl, techStacks, workStyles,
       futureRole, major, year, name, profileImage, coverImage,
-      kakaoId, discordId // New fields
+      contactEmail, discordId // New fields
     } = req.body;
 
     if (!firebaseUid) return res.status(401).json({ error: 'Unauthorized' });
@@ -213,7 +213,7 @@ export const updateProfile = async (req: Request, res: Response) => {
         name,
         profileImage,
         coverImage,
-        kakaoId,
+        contactEmail,
         discordId
       }
     });
@@ -318,61 +318,6 @@ export const deleteProfileItem = async (req: Request, res: Response) => {
   }
 };
 
-// 🔔 Get Notifications
-export const getNotifications = async (req: Request, res: Response) => {
-  try {
-    const firebaseUid = req.user?.uid;
-    if (!firebaseUid) return res.status(401).json({ error: 'Unauthorized' });
-
-    const user = await prisma.user.findUnique({ where: { firebaseUid } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    // 🕰️ Lazy Cleanup: Delete notifications older than 14 days
-    const twoWeeksAgo = new Date();
-    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-
-    await prisma.notification.deleteMany({
-      where: {
-        userId: user.id,
-        createdAt: { lt: twoWeeksAgo }
-      }
-    });
-
-    const notifications = await prisma.notification.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: 'desc' },
-      take: 20 // Limit to recent 20
-    });
-
-    res.json(notifications);
-  } catch (error) {
-    console.error("Get Notifications Error:", error);
-    res.status(500).json({ error: 'Failed' });
-  }
-};
-
-// 🔔 Mark Notification Read
-export const markNotificationRead = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const firebaseUid = req.user?.uid;
-    if (!firebaseUid) return res.status(401).json({ error: 'Unauthorized' });
-
-    const user = await prisma.user.findUnique({ where: { firebaseUid } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    await prisma.notification.updateMany({
-      where: { id, userId: user.id }, // Ensure ownership
-      data: { read: true }
-    });
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error("Mark Read Error:", error);
-    res.status(500).json({ error: 'Failed' });
-  }
-};
-
 // 🔍 Get User Profile by ID (Public Read-Only)
 export const getUserById = async (req: Request, res: Response) => {
   try {
@@ -395,11 +340,9 @@ export const getUserById = async (req: Request, res: Response) => {
     if (!isOwner && !user.isContactVisible) {
       // Mask specific fields
       (user as any).email = null;
-      (user as any).kakaoId = null;
+      (user as any).contactEmail = null;
       (user as any).discordId = null;
-      // Keep GitHub/LinkedIn public as usually intended for portfolio, or mask them too? 
-      // Prompt says "Only activate email/kakao/discord information". 
-      // I will assume social links are fine, but contact IDs are private.
+      // Keep GitHub/LinkedIn public
     }
 
     res.json(user);
