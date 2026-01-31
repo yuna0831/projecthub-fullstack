@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, ProjectStatus, LogAction } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -230,7 +230,7 @@ export const getProjectById = async (req: Request, res: Response) => {
         const project = await prisma.project.findUnique({
             where: { id },
             include: {
-                owner: { select: { id: true, name: true, email: true } },
+                owner: { select: { id: true, name: true, email: true, profileImage: true } },
                 techStacks: true,
                 roles: true,
             }
@@ -238,7 +238,13 @@ export const getProjectById = async (req: Request, res: Response) => {
 
         if (!project) return res.status(404).json({ error: 'Project not found' });
 
-        res.json(project);
+        // Check if completion requested
+        const completionRequest = await prisma.projectLog.findFirst({
+            where: { projectId: id, action: 'COMPLETION_REQUEST' },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        res.json({ ...project, completionRequested: !!completionRequest });
     } catch (error) {
         console.error('Error fetching project:', error);
         res.status(500).json({ error: 'Failed to fetch project' });
@@ -261,6 +267,10 @@ export const applyToProject = async (req: Request, res: Response) => {
         // Check if project exists
         const project = await prisma.project.findUnique({ where: { id } });
         if (!project) return res.status(404).json({ error: 'Project not found' });
+
+        if (project.status !== 'OPEN') {
+            return res.status(400).json({ error: 'Project is not accepting applications' });
+        }
 
         // Check if already applied
         const existingApp = await prisma.application.findUnique({
@@ -382,12 +392,40 @@ export const checkApplicationStatus = async (req: Request, res: Response) => {
     }
 };
 
-// 🏁 Mark Project as Completed
-export const completeProject = async (req: Request, res: Response) => {
+// 🆕 Withdraw Application
+export const withdrawApplication = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const firebaseUid = req.user?.uid;
+        if (!firebaseUid) return res.status(401).json({ error: 'Unauthorized' });
 
+        const user = await prisma.user.findUnique({ where: { firebaseUid } });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const application = await prisma.application.findUnique({
+            where: { projectId_userId: { projectId: id, userId: user.id } }
+        });
+
+        if (!application) return res.status(404).json({ error: 'Application not found' });
+        if (application.status === 'ACCEPTED') return res.status(400).json({ error: 'Cannot withdraw accepted application. Contact owner.' });
+
+        await prisma.application.delete({
+            where: { projectId_userId: { projectId: id, userId: user.id } }
+        });
+
+        res.json({ message: 'Application withdrawn successfully' });
+    } catch (error) {
+        console.error("Withdraw Error:", error);
+        res.status(500).json({ error: 'Failed to withdraw' });
+    }
+};
+
+// 🆕 Update Project Status (StateMachine)
+export const updateProjectStatus = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body; // DRAFT, OPEN, FILLED, CLOSED
+        const firebaseUid = req.user?.uid;
         if (!firebaseUid) return res.status(401).json({ error: 'Unauthorized' });
 
         const user = await prisma.user.findUnique({ where: { firebaseUid } });
@@ -395,36 +433,180 @@ export const completeProject = async (req: Request, res: Response) => {
 
         const project = await prisma.project.findUnique({ where: { id } });
         if (!project) return res.status(404).json({ error: 'Project not found' });
+        if (project.ownerId !== user.id) return res.status(403).json({ error: 'Only owner can update status' });
 
-        if (project.ownerId !== user.id) {
-            return res.status(403).json({ error: 'Only the project owner can mark it as completed' });
+        // Simple State Machine Validation
+        const allowedTransitions: Record<string, string[]> = {
+            'DRAFT': ['OPEN'],
+            'OPEN': ['FILLED', 'CLOSED'],
+            'FILLED': ['OPEN', 'CLOSED'],
+            'CLOSED': ['OPEN', 'FILLED'], // Can reopen
+            'COMPLETED': [] // Terminal state (sort of)
+        };
+
+        if (!allowedTransitions[project.status].includes(status)) {
+            return res.status(400).json({ error: `Cannot transition from ${project.status} to ${status}` });
         }
 
         const updated = await prisma.project.update({
             where: { id },
-            data: { status: 'COMPLETED' }
+            data: { status }
         });
 
-        // Notify all accepted applicants
-        const acceptedApps = await prisma.application.findMany({
-            where: { projectId: id, status: 'ACCEPTED' },
-            include: { user: true }
+        // 📝 Log it
+        await prisma.projectLog.create({
+            data: {
+                projectId: id,
+                userId: user.id,
+                action: 'STATUS_CHANGE',
+                metadata: { oldStatus: project.status, newStatus: status }
+            }
         });
 
-        for (const app of acceptedApps) {
+        res.json(updated);
+    } catch (error) {
+        console.error("Update Status Error:", error);
+        res.status(500).json({ error: 'Failed to update status' });
+    }
+};
+
+// 🏁 Request Completion (Owner) Or Complete Directly if no members
+export const completeProject = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const firebaseUid = req.user?.uid;
+        if (!firebaseUid) return res.status(401).json({ error: 'Unauthorized' });
+
+        const user = await prisma.user.findUnique({ where: { firebaseUid } });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const project = await prisma.project.findUnique({ where: { id }, include: { applications: true } });
+        if (!project) return res.status(404).json({ error: 'Project not found' });
+        if (project.ownerId !== user.id) return res.status(403).json({ error: 'Only owner can request completion' });
+
+        if (project.status === 'COMPLETED') return res.status(400).json({ error: 'Project already completed' });
+
+        const members = project.applications.filter(app => app.status === 'ACCEPTED');
+
+        // Case 1: No members -> Complete Immediately
+        if (members.length === 0) {
+            const updated = await prisma.project.update({
+                where: { id },
+                data: { status: 'COMPLETED', completedAt: new Date() }
+            });
+            await prisma.projectLog.create({
+                data: { projectId: id, userId: user.id, action: 'STATUS_CHANGE', metadata: { newStatus: 'COMPLETED', method: 'DIRECT' } }
+            });
+            return res.json({ message: 'Project completed', project: updated });
+        }
+
+        // Case 2: Members exist -> Request Confirmation
+        // Check if already requested?
+        const existingRequest = await prisma.projectLog.findFirst({
+            where: { projectId: id, action: 'COMPLETION_REQUEST' },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        if (existingRequest) {
+            // Maybe allow re-request to notify again?
+        }
+
+        await prisma.projectLog.create({
+            data: { projectId: id, userId: user.id, action: 'COMPLETION_REQUEST' }
+        });
+
+        // Notify Members
+        for (const member of members) {
             await prisma.notification.create({
                 data: {
-                    userId: app.userId,
-                    message: `🏆 "${project.title}" is now completed! You can now leave peer reviews.`,
-                    type: 'SUCCESS',
-                    link: `/project/${id}/reviews`
+                    userId: member.userId,
+                    message: `🏁 Owner requested to complete "${project.title}". Please confirm.`,
+                    type: 'WARNING',
+                    link: `/project/${id}`
                 }
             });
         }
 
-        res.json(updated);
+        res.json({ message: 'Completion requested. Members must confirm.' });
     } catch (error) {
         console.error("Complete Project Error:", error);
-        res.status(500).json({ error: 'Failed to complete project' });
+        res.status(500).json({ error: 'Failed to request completion' });
+    }
+};
+
+// ✅ Confirm Completion (Member)
+export const confirmCompletion = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const firebaseUid = req.user?.uid;
+        if (!firebaseUid) return res.status(401).json({ error: 'Unauthorized' });
+
+        const user = await prisma.user.findUnique({ where: { firebaseUid } });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        // Check Membership
+        const app = await prisma.application.findUnique({
+            where: { projectId_userId: { projectId: id, userId: user.id } }
+        });
+        if (!app || app.status !== 'ACCEPTED') return res.status(403).json({ error: 'Not a member' });
+
+        // Check if Request Exists
+        const requestLog = await prisma.projectLog.findFirst({
+            where: { projectId: id, action: 'COMPLETION_REQUEST' },
+            orderBy: { createdAt: 'desc' }
+        });
+        if (!requestLog) return res.status(400).json({ error: 'No active completion request' });
+
+        // Record Vote
+        await prisma.projectLog.create({
+            data: {
+                projectId: id,
+                userId: user.id,
+                action: 'COMPLETION_CONFIRM',
+                metadata: { originalRequestId: requestLog.id }
+            }
+        });
+
+        // Check Votes
+        const project = await prisma.project.findUnique({ where: { id }, include: { applications: true } });
+        const members = project!.applications.filter(a => a.status === 'ACCEPTED');
+
+        const confirms = await prisma.projectLog.groupBy({
+            by: ['userId'],
+            where: {
+                projectId: id,
+                action: 'COMPLETION_CONFIRM',
+                createdAt: { gt: requestLog.createdAt }
+            }
+        });
+
+        const confirmCount = confirms.length;
+        // Logic: Greater than 50%
+        if (confirmCount > members.length / 2) {
+            const updated = await prisma.project.update({
+                where: { id },
+                data: { status: 'COMPLETED', completedAt: new Date() }
+            });
+
+            // Notify Everyone
+            const uniqueUserIds = new Set([project!.ownerId, ...members.map(m => m.userId)]);
+            for (const uid of uniqueUserIds) {
+                await prisma.notification.create({
+                    data: {
+                        userId: uid,
+                        message: `🏆 Project "${project!.title}" is officially COMPLETED!`,
+                        type: 'SUCCESS',
+                        link: `/project/${id}`
+                    }
+                });
+            }
+            return res.json({ message: 'Project completed successfully', project: updated });
+        }
+
+        res.json({ message: 'Confirmation recorded. Waiting for more votes.', current: confirmCount, required: Math.floor(members.length / 2) + 1 });
+
+    } catch (error) {
+        console.error("Confirm Error:", error);
+        res.status(500).json({ error: 'Failed to confirm' });
     }
 };

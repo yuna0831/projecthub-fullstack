@@ -23,7 +23,7 @@ export default function NotificationBell() {
         if (!user) return;
         try {
             const token = await user.getIdToken();
-            const res = await fetch(`http://localhost:3001/api/users/notifications`, {
+            const res = await fetch(`http://localhost:3001/api/notifications`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
@@ -59,8 +59,9 @@ export default function NotificationBell() {
         // Background API Call
         try {
             const token = await user.getIdToken();
-            await fetch(`http://localhost:3001/api/users/notifications/${id}/read`, {
-                method: 'PUT',
+            // Fixed endpoint from /api/users/notifications to /api/notifications
+            await fetch(`http://localhost:3001/api/notifications/${id}/read`, {
+                method: 'PATCH', // Fixed method to PATCH to match backend route
                 headers: { 'Authorization': `Bearer ${token}` }
             });
         } catch (e) {

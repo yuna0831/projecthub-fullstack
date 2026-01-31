@@ -39,8 +39,11 @@ export default function ProfilePage() {
     name: "", major: "", year: "", bio: "",
     githubUrl: "", linkedinUrl: "", portfolioUrl: "",
     techStacks: "", profileImage: "", coverImage: "",
-    workStyles: [] as string[], futureRole: ""
+    workStyles: [] as string[], futureRole: "",
+    kakaoId: "", discordId: "" // 🆕
   });
+
+  const [isContactVisible, setIsContactVisible] = useState(false); // 🆕
 
   const [newItem, setNewItem] = useState<any>({});
   const [badges, setBadges] = useState<any>({});
@@ -76,6 +79,7 @@ export default function ProfilePage() {
       setProfile(userData);
       setEducations(userData.educations || []);
       setExperiences(userData.experiences || []);
+      setIsContactVisible(userData.isContactVisible || false); // 🆕
 
       // Fetch Badges
       if (userData.id) {
@@ -97,7 +101,9 @@ export default function ProfilePage() {
         profileImage: userData.profileImage || "",
         coverImage: userData.coverImage || "",
         workStyles: userData.workStyles || [],
-        futureRole: userData.futureRole || ""
+        futureRole: userData.futureRole || "",
+        kakaoId: userData.kakaoId || "",    // 🆕
+        discordId: userData.discordId || "" // 🆕
       });
     } catch (e) {
       console.error(e);
@@ -151,6 +157,24 @@ export default function ProfilePage() {
       alert("Failed to save profile.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTogglePrivacy = async () => {
+    try {
+      const token = await user?.getIdToken();
+      const res = await fetch('http://localhost:3001/api/users/privacy', {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsContactVisible(data.isContactVisible);
+        alert(`Contact visibility is now ${data.isContactVisible ? 'ON' : 'OFF'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Failed to toggle privacy");
     }
   };
 
@@ -285,6 +309,14 @@ export default function ProfilePage() {
                           ))}
                         </div>
                       )}
+
+                      {/* Contact IDs Display (My Profile always sees them, but visualize visibility) */}
+                      {(profile?.kakaoId || profile?.discordId) && (
+                        <div className="mt-4 flex gap-4 text-sm font-medium text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-100 inline-flex">
+                          {profile.kakaoId && <span className="flex items-center gap-1">💬 Kakao: {profile.kakaoId}</span>}
+                          {profile.discordId && <span className="flex items-center gap-1">🎮 Discord: {profile.discordId}</span>}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -295,6 +327,18 @@ export default function ProfilePage() {
                 <div className="flex gap-3">
                   {!isEditing && (
                     <>
+                      {/* Privacy Toggle */}
+                      <button
+                        onClick={handleTogglePrivacy}
+                        className={`p-2 border rounded-full transition shadow-sm group relative ${isContactVisible ? 'bg-green-50 border-green-200 text-green-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}
+                        title={isContactVisible ? "Contact Info Visible" : "Contact Info Hidden"}
+                      >
+                        {isContactVisible ? <CheckIcon className="w-5 h-5" /> : <div className="w-5 h-5 flex items-center justify-center font-bold text-xs">🔒</div>}
+                        <span className="absolute -top-8 right-0 w-max bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none">
+                          {isContactVisible ? "Contact Visible" : "Contact Hidden"}
+                        </span>
+                      </button>
+
                       {profile?.githubUrl && (
                         <a href={profile.githubUrl} target="_blank" rel="noopener noreferrer" className="p-2 bg-slate-50 border border-slate-200 text-slate-600 hover:text-[#c5050c] hover:border-[#c5050c] rounded-full transition shadow-sm group">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -352,6 +396,13 @@ export default function ProfilePage() {
                   <input className="w-full text-sm p-2 border rounded" placeholder="GitHub URL" value={formData.githubUrl} onChange={e => setFormData({ ...formData, githubUrl: e.target.value })} />
                   <input className="w-full text-sm p-2 border rounded" placeholder="LinkedIn URL" value={formData.linkedinUrl} onChange={e => setFormData({ ...formData, linkedinUrl: e.target.value })} />
                   <input className="w-full text-sm p-2 border rounded" placeholder="Portfolio URL" value={formData.portfolioUrl} onChange={e => setFormData({ ...formData, portfolioUrl: e.target.value })} />
+
+                  <div className="pt-2 border-t border-slate-200 mt-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Direct Contact (Private)</label>
+                    <input className="w-full text-sm p-2 border rounded mb-2" placeholder="KakaoTalk ID" value={formData.kakaoId} onChange={e => setFormData({ ...formData, kakaoId: e.target.value })} />
+                    <input className="w-full text-sm p-2 border rounded" placeholder="Discord ID" value={formData.discordId} onChange={e => setFormData({ ...formData, discordId: e.target.value })} />
+                    <p className="text-[10px] text-slate-400 mt-1">These will only be visible if you enable &quot;Contact Visibility&quot;.</p>
+                  </div>
                 </div>
               </div>
             )}

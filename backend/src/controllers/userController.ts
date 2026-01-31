@@ -186,7 +186,11 @@ export const updateApplicationStatus = async (req: Request, res: Response) => {
 export const updateProfile = async (req: Request, res: Response) => {
   try {
     const firebaseUid = req.user?.uid;
-    const { bio, githubUrl, linkedinUrl, portfolioUrl, techStacks, workStyles, futureRole, major, year, name, profileImage, coverImage } = req.body;
+    const {
+      bio, githubUrl, linkedinUrl, portfolioUrl, techStacks, workStyles,
+      futureRole, major, year, name, profileImage, coverImage,
+      kakaoId, discordId // New fields
+    } = req.body;
 
     if (!firebaseUid) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -208,7 +212,9 @@ export const updateProfile = async (req: Request, res: Response) => {
         year,
         name,
         profileImage,
-        coverImage
+        coverImage,
+        kakaoId,
+        discordId
       }
     });
 
@@ -216,6 +222,27 @@ export const updateProfile = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Update Profile Error:", error);
     res.status(500).json({ error: 'Failed to update profile' });
+  }
+};
+
+// 🔒 Toggle Privacy
+export const togglePrivacy = async (req: Request, res: Response) => {
+  try {
+    const firebaseUid = req.user?.uid;
+    if (!firebaseUid) return res.status(401).json({ error: 'Unauthorized' });
+
+    const user = await prisma.user.findUnique({ where: { firebaseUid } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: { isContactVisible: !user.isContactVisible }
+    });
+
+    res.json({ message: 'Privacy setting updated', isContactVisible: updated.isContactVisible });
+  } catch (error) {
+    console.error("Toggle Privacy Error:", error);
+    res.status(500).json({ error: 'Failed to toggle privacy' });
   }
 };
 
@@ -350,20 +377,31 @@ export const markNotificationRead = async (req: Request, res: Response) => {
 export const getUserById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const requesterUid = req.user?.uid; // Optional: requester might be viewing
+
     const user = await prisma.user.findUnique({
       where: { id },
       include: {
         experiences: true,
         educations: true,
-        // Calculate badges or fetch them? Assuming badges are fetched separately or we can include counts.
-        // For now, simple profile data.
       }
     });
 
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    // Remove sensitive data if needed, but for this platform email seems public-ish for networking?
-    // Let's keep it simple.
+    // Privacy Logic
+    const isOwner = requesterUid && (await prisma.user.findUnique({ where: { firebaseUid: requesterUid } }))?.id === user.id;
+
+    if (!isOwner && !user.isContactVisible) {
+      // Mask specific fields
+      (user as any).email = null;
+      (user as any).kakaoId = null;
+      (user as any).discordId = null;
+      // Keep GitHub/LinkedIn public as usually intended for portfolio, or mask them too? 
+      // Prompt says "Only activate email/kakao/discord information". 
+      // I will assume social links are fine, but contact IDs are private.
+    }
+
     res.json(user);
   } catch (error) {
     console.error("Get User Error:", error);

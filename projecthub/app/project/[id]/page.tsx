@@ -24,6 +24,40 @@ export default function ProjectDetailPage() {
   const [isOwner, setIsOwner] = useState(false);
   const [loading, setLoading] = useState(true);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [completionRequested, setCompletionRequested] = useState(false); // 🆕
+
+  // Report State
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportReason, setReportReason] = useState('SPAM');
+  const [reportDesc, setReportDesc] = useState('');
+
+  const handleReportSubmit = async () => {
+    if (!reportReason) return;
+    try {
+      const token = await user?.getIdToken();
+      const res = await fetch('http://localhost:3001/api/reports', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          targetType: 'PROJECT',
+          targetId: id,
+          reason: reportReason,
+          description: reportDesc
+        })
+      });
+
+      if (res.ok) {
+        alert("Report submitted successfully.");
+        setReportModalOpen(false);
+        setReportDesc('');
+      } else {
+        alert("Failed to submit report.");
+      }
+    } catch (e) { console.error(e); }
+  };
 
   // Fetch Project Data
   useEffect(() => {
@@ -33,6 +67,7 @@ export default function ProjectDetailPage() {
         if (!res.ok) throw new Error("Failed to fetch project");
         const data = await res.json();
         setProject(data);
+        setCompletionRequested(data.completionRequested || false); // 🆕
 
         if (user) {
           // Check ownership
@@ -53,7 +88,7 @@ export default function ProjectDetailPage() {
           } else {
             // Check if user has already applied
             try {
-              const statusRes = await fetch(`http://localhost:3001/api/projects/${id}/application-status`, {
+              const statusRes = await fetch(`http://localhost:3001/api/projects/${id}/status`, { // Fixed route
                 headers: { Authorization: `Bearer ${token}` }
               });
               if (statusRes.ok) {
@@ -82,13 +117,6 @@ export default function ProjectDetailPage() {
 
   const handleApplyClick = () => {
     if (!user) return alert("Please sign in first.");
-
-    // 🛡️ Email Verification Check
-    // if (!user.emailVerified) {
-    //   alert("⚠️ Please verify your @wisc.edu email first via your inbox to apply.");
-    //   return;
-    // }
-
     setIsApplyModalOpen(true);
   };
 
@@ -126,24 +154,75 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const handleCompleteProject = async () => {
-    if (!confirm("Start Peer Review Phase? Since this is a demo, you can revert this later via DB.")) return;
-    // In a real app, strict checks. Here we just update status.
-    // We haven't created a specific API for 'complete', but updateProject route exists?
-    // Wait, we didn't check if updateProject exists. The updateProfile exists. 
-    // Assuming generic update might not be ready or we need a new route.
-    // But we can probably just use database direct manipulation or create a quick route if blocked.
-    // Actually, let's assume I need to create a simple endpoint or use an existing one. 
-    // I'll skip the API call implementation here and mock visual change or just alert if API missing.
-    // Actually, I should probably implement the API. 
-    // Let's assume there is a generic update or I can add a specific one.
-    // For now, I will alert.
-    alert("Feature coming soon: Switch status to COMPLETED to enable reviews.");
-    // Or better, let's just create the route quickly? 
-    // No, let's just use the 'Leave Review' button for testing even if OPEN, or check status.
-    // The requirement says "PROJECT IS COMPLETED".
-    // Let's add a quick client-side optimistic update for DEMO purposes if API failing?
-    // No, let's try to hit an endpoint.
+  // 🆕 Withdraw Application
+  const handleWithdraw = async () => {
+    if (!confirm("Are you sure you want to withdraw?")) return;
+    if (!user) return;
+    const token = await user.getIdToken();
+    try {
+      const res = await fetch(`http://localhost:3001/api/projects/${id}/application`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setHasApplied(false);
+        setApplicationStatus(null);
+        alert("Application withdrawn.");
+      } else {
+        alert("Failed to withdraw.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error withdrawing.");
+    }
+  };
+
+  // 🆕 Request Completion (Owner)
+  const handleRequestCompletion = async () => {
+    if (!confirm("Start Project Completion Vote? Members will need to confirm.")) return;
+    if (!user) return;
+    const token = await user.getIdToken();
+    try {
+      const res = await fetch(`http://localhost:3001/api/projects/${id}/complete`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setCompletionRequested(true);
+        alert("Completion requested! Waiting for member confirmation.");
+      } else {
+        const err = await res.json();
+        alert("Failed: " + err.error);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error requesting completion.");
+    }
+  };
+
+  // 🆕 Confirm Completion (Member)
+  const handleConfirmCompletion = async () => {
+    if (!confirm("Confirm that this project is completed?")) return;
+    if (!user) return;
+    const token = await user.getIdToken();
+    try {
+      const res = await fetch(`http://localhost:3001/api/projects/${id}/complete/confirm`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message);
+        if (data.project?.status === 'COMPLETED') {
+          setProject(data.project); // Update UI to completed state
+        }
+      } else {
+        alert("Failed: " + data.error);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error confirming completion.");
+    }
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-[#c5050c] border-t-transparent rounded-full"></div></div>;
@@ -292,13 +371,23 @@ export default function ProjectDetailPage() {
             <h3 className="text-lg font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">Action</h3>
 
             {project.status === 'CLOSED' ? (
-              <button disabled className="w-full bg-slate-300 text-white font-bold py-3 rounded-xl cursor-not-allowed">
-                Project Completed
-              </button>
-            ) : project.status === 'CLOSED' ? (
-              <button disabled className="w-full bg-slate-300 text-white font-bold py-3 rounded-xl cursor-not-allowed">
-                Applications Closed
-              </button>
+              <div className="space-y-3">
+                <button disabled className="w-full bg-slate-300 text-white font-bold py-3 rounded-xl cursor-not-allowed">
+                  Project Closed
+                </button>
+                {/* Allow reopening? */}
+              </div>
+            ) : project.status === 'COMPLETED' ? (
+              <div className="space-y-3">
+                <button disabled className="w-full bg-green-600 text-white font-bold py-3 rounded-xl cursor-default flex items-center justify-center gap-2">
+                  <CheckCircleIcon className="w-6 h-6" /> Project Completed
+                </button>
+                {(isOwner || hasApplied) && (
+                  <button onClick={() => setReviewModalOpen(true)} className="block w-full text-center py-2 bg-yellow-400 hover:bg-yellow-500 rounded-xl font-bold text-slate-900 transition shadow-sm">
+                    ⭐ Give Peer Review
+                  </button>
+                )}
+              </div>
             ) : isOwner ? (
               <div className="space-y-3">
                 <a
@@ -310,12 +399,18 @@ export default function ProjectDetailPage() {
                 <div className="text-center text-xs text-slate-400">Owner Dashboard Active</div>
 
                 {/* Owner Actions */}
-                <button
-                  onClick={handleCompleteProject}
-                  className="w-full bg-slate-800 text-white font-bold py-2 rounded-xl text-sm"
-                >
-                  Mark as Completed
-                </button>
+                {completionRequested ? (
+                  <button disabled className="w-full bg-yellow-100 text-yellow-700 font-bold py-3 rounded-xl cursor-default border border-yellow-200">
+                    Waiting for Confirmation...
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleRequestCompletion}
+                    className="w-full bg-slate-800 text-white font-bold py-3 rounded-xl text-sm hover:bg-slate-900 transition"
+                  >
+                    Request Completion
+                  </button>
+                )}
               </div>
             ) : !user ? (
               <button
@@ -325,19 +420,46 @@ export default function ProjectDetailPage() {
                 Login to Apply
               </button>
             ) : hasApplied ? (
-              applicationStatus === 'REJECTED' ? (
-                <button disabled className="w-full bg-red-50 text-red-700 border border-red-200 font-bold py-3 rounded-xl flex items-center justify-center gap-2 cursor-default">
-                  <XCircleIcon className="w-5 h-5" /> Rejected
-                </button>
-              ) : applicationStatus === 'ACCEPTED' ? (
-                <button disabled className="w-full bg-green-50 text-green-700 border border-green-200 font-bold py-3 rounded-xl flex items-center justify-center gap-2 cursor-default">
-                  <CheckCircleIcon className="w-5 h-5" /> Accepted
-                </button>
-              ) : (
-                <button disabled className="w-full bg-slate-100 text-slate-600 border border-slate-200 font-bold py-3 rounded-xl flex items-center justify-center gap-2 cursor-default">
-                  <CheckCircleIcon className="w-5 h-5" /> Applied
-                </button>
-              )
+              <div className="space-y-3">
+                {/* Status Display */}
+                {applicationStatus === 'REJECTED' ? (
+                  <button disabled className="w-full bg-red-50 text-red-700 border border-red-200 font-bold py-3 rounded-xl flex items-center justify-center gap-2 cursor-default">
+                    <XCircleIcon className="w-5 h-5" /> Rejected
+                  </button>
+                ) : applicationStatus === 'ACCEPTED' ? (
+                  <>
+                    <button disabled className="w-full bg-green-50 text-green-700 border border-green-200 font-bold py-3 rounded-xl flex items-center justify-center gap-2 cursor-default">
+                      <CheckCircleIcon className="w-5 h-5" /> Accepted Member
+                    </button>
+
+                    {/* Member Actions */}
+                    {completionRequested && (
+                      <button
+                        onClick={handleConfirmCompletion}
+                        className="w-full bg-[#c5050c] text-white font-bold py-3 rounded-xl hover:bg-red-700 transition animate-pulse"
+                      >
+                        Confirm Completion
+                      </button>
+                    )}
+
+                    <a href={`/project/${id}/room`} className="block w-full text-center py-2 border-2 border-slate-200 hover:border-slate-800 rounded-xl font-bold text-slate-700 transition">
+                      🔑 Enter Project Room
+                    </a>
+                  </>
+                ) : (
+                  <>
+                    <button disabled className="w-full bg-slate-100 text-slate-600 border border-slate-200 font-bold py-3 rounded-xl flex items-center justify-center gap-2 cursor-default">
+                      <CheckCircleIcon className="w-5 h-5" /> Pending Application
+                    </button>
+                    <button
+                      onClick={handleWithdraw}
+                      className="w-full text-red-500 text-sm hover:underline"
+                    >
+                      Withdraw Application
+                    </button>
+                  </>
+                )}
+              </div>
             ) : (
               <button
                 onClick={handleApplyClick}
@@ -345,27 +467,6 @@ export default function ProjectDetailPage() {
               >
                 Apply Now
               </button>
-            )}
-
-            {/* Project Room & Reviews */}
-            {(isOwner || hasApplied /* Actually verify applied status is ACCEPTED? Frontend 'hasApplied' just checks if applied. We need 'accepted'. */) && (
-              /* We need to accurately check if ACCEPTED. 'applicants' list helps ONLY if owner. 
-                 If user, statusRes gave us 'status'. We should store it.
-                 Let's simplify: If (isOwner || (hasApplied && project.status !== 'OPEN'))? No.
-                 Let's just show 'Enter Project Room' to everyone for DEMO/Testing ease? 
-                 Strictly: verify membership.
-                 For now, I'll show it if isOwner or hasApplied for simplicity, keeping in mind security is on backend.
-              */
-              <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
-                <a href={`/project/${id}/room`} className="block w-full text-center py-2 border-2 border-slate-200 hover:border-slate-800 rounded-xl font-bold text-slate-700 transition">
-                  🔑 Enter Project Room
-                </a>
-
-                {/* Review Trigger */}
-                <button onClick={() => setReviewModalOpen(true)} className="block w-full text-center py-2 bg-yellow-400 hover:bg-yellow-500 rounded-xl font-bold text-slate-900 transition shadow-sm">
-                  ⭐ Give Peer Review
-                </button>
-              </div>
             )}
           </div>
 
@@ -425,6 +526,16 @@ export default function ProjectDetailPage() {
             <p className="text-sm text-slate-600">Join <strong>{applicants.length + 1}</strong> members in this project to build your network.</p>
           </div>
 
+          {/* Report Button */}
+          <div className="text-center">
+            <button
+              onClick={() => setReportModalOpen(true)}
+              className="text-xs font-bold text-slate-400 hover:text-red-500 transition flex items-center justify-center gap-1 mx-auto"
+            >
+              <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center">!</span> Report this Project
+            </button>
+          </div>
+
         </div>
       </div>
       <ReviewModal
@@ -434,6 +545,43 @@ export default function ProjectDetailPage() {
         members={applicants.map(a => a.user)} // Pass applicants. Owner isn't in applicants list usually. Need to add owner? 
       /* Ideally we want to review anyone in the team. */
       />
+
+      {/* Report Modal */}
+      {reportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-2xl">
+            <h3 className="text-xl font-bold mb-4 text-slate-900 border-b pb-3">Report Project</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Reason</label>
+                <select
+                  className="w-full p-2 border rounded-lg bg-slate-50"
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                >
+                  <option value="SPAM">Spam or Advertising</option>
+                  <option value="INAPPROPRIATE">Inappropriate Content</option>
+                  <option value="HARASSMENT">Harassment</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Description</label>
+                <textarea
+                  className="w-full p-2 border rounded-lg bg-slate-50 h-24"
+                  placeholder="Please provide known details..."
+                  value={reportDesc}
+                  onChange={(e) => setReportDesc(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6 justify-end">
+              <button onClick={() => setReportModalOpen(false)} className="px-5 py-2 text-slate-500 font-bold hover:bg-slate-50 rounded-lg">Cancel</button>
+              <button onClick={handleReportSubmit} className="px-5 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 shadow-md">Submit Report</button>
+            </div>
+          </div>
+        </div>
+      )}
       <ApplyModal
         isOpen={isApplyModalOpen}
         onClose={() => setIsApplyModalOpen(false)}

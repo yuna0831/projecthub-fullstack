@@ -19,18 +19,31 @@ interface DashboardData {
     myApplications: any[];
 }
 
+interface Notification {
+    id: string;
+    message: string;
+    type: 'INFO' | 'SUCCESS' | 'ERROR' | 'WARNING';
+    read: boolean;
+    link?: string;
+    createdAt: string;
+}
+
 export default function DashboardPage() {
     const { user } = useAuth();
     const [data, setData] = useState<DashboardData>({ ownedProjects: [], myApplications: [] });
+    const [notifications, setNotifications] = useState<Notification[]>([]); // 🆕
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'managed' | 'applied'>('managed');
+    const [activeTab, setActiveTab] = useState<'managed' | 'applied' | 'notifications'>('managed'); // 🆕
 
     // Modal State
     const [selectedProject, setSelectedProject] = useState<any>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     useEffect(() => {
-        if (user) fetchDashboardData();
+        if (user) {
+            fetchDashboardData();
+            fetchNotifications(); // 🆕
+        }
     }, [user]);
 
     const fetchDashboardData = async () => {
@@ -49,6 +62,31 @@ export default function DashboardPage() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const fetchNotifications = async () => {
+        try {
+            const token = await user?.getIdToken();
+            if (!token) return;
+            const res = await fetch('http://localhost:3001/api/notifications', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) setNotifications(await res.json());
+        } catch (e) { console.error(e); }
+    };
+
+    const handleMarkRead = async (id: string, link?: string) => {
+        try {
+            const token = await user?.getIdToken();
+            await fetch(`http://localhost:3001/api/notifications/${id}/read`, {
+                method: 'PATCH',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            // Update local
+            setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+
+            if (link) window.location.href = link;
+        } catch (e) { console.error(e); }
     };
 
     const handleOpenApplicants = (project: any) => {
@@ -92,12 +130,16 @@ export default function DashboardPage() {
 
         try {
             const token = await user?.getIdToken();
-            const res = await fetch(`http://localhost:3001/api/projects/${projectId}/complete`, {
-                method: 'PUT',
+            const res = await fetch(`http://localhost:3001/api/projects/${projectId}/complete`, { // Using project route not generic update
+                method: 'POST', // Changed to POST /complete
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
-            if (!res.ok) throw new Error('Failed to complete project');
+            if (!res.ok) {
+                // Try legacy/other endpoint if fetch fails? (from previous code it was PUT project update but here we utilize the new route)
+                // actually the new route is POST /complete. 
+                throw new Error('Failed to complete project');
+            }
 
             // Refresh
             fetchDashboardData();
@@ -120,23 +162,58 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b border-slate-200 mb-8">
+                <div className="flex border-b border-slate-200 mb-8 overflow-x-auto">
                     <button
                         onClick={() => setActiveTab('managed')}
-                        className={`pb-4 px-6 text-sm font-bold transition-all ${activeTab === 'managed' ? 'border-b-2 border-[#c5050c] text-[#c5050c]' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`pb-4 px-6 text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'managed' ? 'border-b-2 border-[#c5050c] text-[#c5050c]' : 'text-slate-500 hover:text-slate-700'}`}
                     >
                         Projects I Manage ({data.ownedProjects.length})
                     </button>
                     <button
                         onClick={() => setActiveTab('applied')}
-                        className={`pb-4 px-6 text-sm font-bold transition-all ${activeTab === 'applied' ? 'border-b-2 border-[#c5050c] text-[#c5050c]' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`pb-4 px-6 text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'applied' ? 'border-b-2 border-[#c5050c] text-[#c5050c]' : 'text-slate-500 hover:text-slate-700'}`}
                     >
                         My Applications ({data.myApplications.length})
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('notifications')}
+                        className={`pb-4 px-6 text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'notifications' ? 'border-b-2 border-[#c5050c] text-[#c5050c]' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        Notifications
+                        {notifications.filter(n => !n.read).length > 0 && (
+                            <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{notifications.filter(n => !n.read).length}</span>
+                        )}
                     </button>
                 </div>
 
                 {/* Content */}
-                {activeTab === 'managed' ? (
+                {activeTab === 'notifications' ? (
+                    <div className="space-y-4">
+                        {notifications.length === 0 && (
+                            <div className="text-center py-20 bg-white rounded-xl border border-dashed border-slate-300">
+                                <p className="text-slate-500">No new notifications.</p>
+                            </div>
+                        )}
+                        {notifications.map(note => (
+                            <div
+                                key={note.id}
+                                onClick={() => handleMarkRead(note.id, note.link)}
+                                className={`bg-white rounded-xl border p-5 flex items-start cursor-pointer transition-colors hover:bg-slate-50
+                                    ${note.read ? 'border-slate-200 opacity-70' : 'border-blue-200 shadow-sm ring-1 ring-blue-50'}
+                                `}
+                            >
+                                <div className={`mt-1 w-2.5 h-2.5 rounded-full mr-4 flex-shrink-0 ${note.read ? 'bg-slate-300' : 'bg-[#c5050c]'}`}></div>
+                                <div className="flex-1">
+                                    <p className={`text-sm ${note.read ? 'text-slate-600' : 'text-slate-900 font-bold'}`}>
+                                        {note.message}
+                                    </p>
+                                    <p className="text-xs text-slate-400 mt-1">{new Date(note.createdAt).toLocaleString()}</p>
+                                </div>
+                                {note.type === 'WARNING' && <span className="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-1 rounded">Action Needed</span>}
+                            </div>
+                        ))}
+                    </div>
+                ) : activeTab === 'managed' ? (
                     <div className="space-y-4">
                         {data.ownedProjects.length === 0 && (
                             <div className="text-center py-20 bg-white rounded-xl border border-dashed border-slate-300">
