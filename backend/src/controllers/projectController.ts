@@ -10,7 +10,8 @@ export const createProject = async (req: Request, res: Response) => {
             meetingType, location, duration, deadline, contactUrl,
             courseCode, semester, isCourseProject, // 🦡 BadgerMatch Fields
             category, // 🦡 New Category
-            hackathonName, hackathonDate // 🏆 Hackathon Fields
+            hackathonName, hackathonDate, // 🏆 Hackathon Fields
+            screeningQuestions // 🆕
         } = req.body;
         const firebaseUid = req.user?.uid;
 
@@ -33,6 +34,8 @@ export const createProject = async (req: Request, res: Response) => {
                     title, description, content, ownerId: user.id,
                     meetingType, location, duration, deadline: deadline ? new Date(deadline) : null, contactUrl,
                     category: category || "IT/Development",
+
+                    screeningQuestions: screeningQuestions || [], // 🆕
 
                     // 🦡 BadgerMatch Data
                     courseCode, semester, isCourseProject: Boolean(isCourseProject),
@@ -81,7 +84,8 @@ export const updateProject = async (req: Request, res: Response) => {
             title, description, content, role, techStacks,
             meetingType, location, duration, deadline, contactUrl,
             courseCode, semester, isCourseProject, category,
-            hackathonName, hackathonDate
+            hackathonName, hackathonDate,
+            screeningQuestions // 🆕
         } = req.body;
         const firebaseUid = req.user?.uid;
 
@@ -108,6 +112,8 @@ export const updateProject = async (req: Request, res: Response) => {
                 category,
                 hackathonName,
                 hackathonDate: hackathonDate ? new Date(hackathonDate) : null,
+
+                screeningQuestions: screeningQuestions || [], // 🆕
 
                 // Update Tech Stacks
                 techStacks: {
@@ -256,7 +262,7 @@ export const getProjectById = async (req: Request, res: Response) => {
 export const applyToProject = async (req: Request, res: Response) => {
     try {
         const { id } = req.params; // Project ID
-        const { message, resumeUrl, roleName } = req.body; // Optional message/resume/roleName
+        const { message, resumeUrl, roleName, answers } = req.body; // 🆕 answers
         const firebaseUid = req.user?.uid;
 
         if (!firebaseUid) return res.status(401).json({ error: 'Unauthorized' });
@@ -293,7 +299,8 @@ export const applyToProject = async (req: Request, res: Response) => {
                 userId: user.id,
                 message,
                 resumeUrl,
-                roleName // Save the selected role name
+                roleName,
+                answers: answers as any // 🆕
             }
         });
 

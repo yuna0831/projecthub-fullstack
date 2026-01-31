@@ -60,6 +60,8 @@ export default function ProjectDetailPage() {
   };
 
   // Fetch Project Data
+  const [userProfile, setUserProfile] = useState<any>(null); // 🆕
+
   useEffect(() => {
     async function fetchData() {
       try {
@@ -67,17 +69,22 @@ export default function ProjectDetailPage() {
         if (!res.ok) throw new Error("Failed to fetch project");
         const data = await res.json();
         setProject(data);
-        setCompletionRequested(data.completionRequested || false); // 🆕
+        setCompletionRequested(data.completionRequested || false);
 
         if (user) {
-          // Check ownership
-          // Assuming the backend returns owner info. 
-          // If the backend assumes we passed the token, we can verify properly.
-          // Since it's public GetProject, we just compare IDs/Emails.
-          const isOwnerCheck = data.owner?.email === user.email; // Fallback to email or use ID if available in session
-          setIsOwner(isOwnerCheck);
-
           const token = await user.getIdToken();
+
+          // 🆕 Fetch Current User Profile for Apply Modal Check
+          try {
+            const profileRes = await fetch(`http://localhost:3001/api/users/${user.uid}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            if (profileRes.ok) setUserProfile(await profileRes.json());
+          } catch (e) { console.error("Failed to fetch profile", e); }
+
+          // Check ownership
+          const isOwnerCheck = data.owner?.email === user.email;
+          setIsOwner(isOwnerCheck);
 
           if (isOwnerCheck) {
             // Fetch Applicants
@@ -88,7 +95,7 @@ export default function ProjectDetailPage() {
           } else {
             // Check if user has already applied
             try {
-              const statusRes = await fetch(`http://localhost:3001/api/projects/${id}/status`, { // Fixed route
+              const statusRes = await fetch(`http://localhost:3001/api/projects/${id}/status`, {
                 headers: { Authorization: `Bearer ${token}` }
               });
               if (statusRes.ok) {
@@ -120,7 +127,7 @@ export default function ProjectDetailPage() {
     setIsApplyModalOpen(true);
   };
 
-  const handleConfirmApply = async (roleName: string) => {
+  const handleConfirmApply = async (roleName: string, answers: Record<string, string>) => { // 🆕 answers
     if (!user) return;
     const token = await user.getIdToken();
 
@@ -133,7 +140,8 @@ export default function ProjectDetailPage() {
         },
         body: JSON.stringify({
           message: "I am interested!",
-          roleName // Send selected role
+          roleName, // Send selected role
+          answers // 🆕 Send answers
         })
       });
 
@@ -153,6 +161,32 @@ export default function ProjectDetailPage() {
       alert("Error applying");
     }
   };
+
+  // ... (withdraw, completion handlers) ...
+  // Keeping Withdraw/Completion handlers as is, reusing existing code by not replacing if not needed.
+  // Wait, I need to be careful with replace_file_content range. 
+  // I will skip replacing Withdraw/Completion handlers if I can target specific blocks. 
+  // But I need to update the Applicants View which is further down.
+  // I will split this into two edits or one large edit if contiguous.
+  // The handlers are in the middle. The fetch is at the top. The render is at the bottom.
+  // I'll do 3 edits for safety.
+
+  // 1. Update useEffect and handleConfirmApply (fetching profile + adding answers arg)
+  // This block covers lines ~63 to ~155.
+
+  // 2. Update Render - Applicants Section (isOwner view)
+  // This block covers lines ~330 to ~366.
+
+  // 3. Update Render - ApplyModal (pass props)
+  // This block covers lines ~612 to ~618.
+
+  // NOTE: I am in the tool call generation. I cannot split into 3 calls in one `replace_file_content`.
+  // I must use `multi_replace_file_content`.
+
+  // Let's use `multi_replace_file_content`.
+
+  // ... Wait, I'm defining the tool arguments right now.
+
 
   // 🆕 Withdraw Application
   const handleWithdraw = async () => {
@@ -336,20 +370,37 @@ export default function ProjectDetailPage() {
 
               <div className="space-y-4">
                 {applicants.map((app: any) => (
-                  <div key={app.id} className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 hover:border-slate-500 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <p className="font-bold text-lg text-white">{app.user.name}</p>
-                      <p className="text-slate-400 text-sm">{app.user.major} • {app.user.year}</p>
-                      {app.message && (
-                        <div className="mt-2 text-sm text-slate-300 bg-slate-800 p-3 rounded-lg border border-slate-700/50">
-                          &quot;{app.message}&quot;
-                        </div>
-                      )}
+                  <div key={app.id} className="bg-slate-800/50 p-6 rounded-xl border border-slate-700 hover:border-slate-500 transition-colors flex flex-col gap-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-bold text-lg text-white">{app.user.name}</p>
+                        <p className="text-slate-400 text-sm mb-1">{app.user.major} • {app.user.year}</p>
+                        <p className="text-[#c5050c] text-xs font-bold uppercase tracking-wider">{app.roleName || 'General Member'}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        {/* Social Links if available */}
+                        {app.user.githubUrl && <a href={app.user.githubUrl} target="_blank" className="text-slate-400 hover:text-white">GitHub</a>}
+                        {app.user.linkedinUrl && <a href={app.user.linkedinUrl} target="_blank" className="text-slate-400 hover:text-white">LinkedIn</a>}
+                      </div>
                     </div>
-                    <div className="flex gap-2">
+
+                    {/* Answers Display */}
+                    {app.answers && Object.keys(app.answers).length > 0 && (
+                      <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700 space-y-2">
+                        <p className="text-xs font-bold text-slate-500 uppercase">Screening Answers</p>
+                        {Object.entries(app.answers).map(([q, a]) => (
+                          <div key={q}>
+                            <p className="text-xs text-slate-400 mb-0.5">{q}</p>
+                            <p className="text-sm text-white">{a as string}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 justify-end mt-2 pt-4 border-t border-slate-700/50">
                       {app.resumeUrl && (
                         <a href={app.resumeUrl} target="_blank" className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition-colors">
-                          View Resume
+                          Resume
                         </a>
                       )}
                       <a href={`mailto:${app.user.email}`} className="px-4 py-2 bg-[#c5050c] hover:bg-red-700 rounded-lg text-sm font-bold text-white transition-colors">
@@ -615,6 +666,8 @@ export default function ProjectDetailPage() {
         onConfirm={handleConfirmApply}
         roles={project?.roles || []}
         projectTitle={project?.title || ""}
+        screeningQuestions={project?.screeningQuestions || []} // 🆕
+        userProfile={userProfile} // 🆕
       />
     </main>
   );

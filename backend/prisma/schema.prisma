@@ -108,6 +108,8 @@ model Project {
   isCourseProject Boolean  @default(false)
   semester        String?  // e.g. "Spring 2024"
 
+  screeningQuestions String[] // 🆕 Screening Questions (Max 3)
+
   // Relations
   roles       ProjectRole[]
   checklistItems ChecklistItem[]

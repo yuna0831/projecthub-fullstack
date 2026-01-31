@@ -197,6 +197,27 @@ export default function RecruitForm({ initialData }: RecruitFormProps) {
     setRoles(newRoles);
   };
 
+  // 🦡 Screening Questions (Max 3)
+  const [screeningQuestions, setScreeningQuestions] = useState<string[]>(
+    initialData?.screeningQuestions || []
+  );
+
+  const addQuestion = () => {
+    if (screeningQuestions.length < 3) {
+      setScreeningQuestions([...screeningQuestions, ""]);
+    }
+  };
+
+  const removeQuestion = (index: number) => {
+    setScreeningQuestions(screeningQuestions.filter((_, i) => i !== index));
+  };
+
+  const updateQuestion = (index: number, value: string) => {
+    const newQuestions = [...screeningQuestions];
+    newQuestions[index] = value;
+    setScreeningQuestions(newQuestions);
+  };
+
   // Handle Submit (Create or Update)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,6 +230,9 @@ export default function RecruitForm({ initialData }: RecruitFormProps) {
         count: r.count,
         skills: r.skills
       })).filter(r => r.name.trim() !== "");
+
+      // Clean empty questions
+      const cleanQuestions = screeningQuestions.filter(q => q.trim() !== "");
 
       const payload = {
         title, description,
@@ -225,7 +249,9 @@ export default function RecruitForm({ initialData }: RecruitFormProps) {
         semester,
         // 🏆 Hackathon
         hackathonName: !isCourseProject && hackathonName ? hackathonName : null,
-        hackathonDate: !isCourseProject && hackathonDate ? hackathonDate : null
+        hackathonDate: !isCourseProject && hackathonDate ? hackathonDate : null,
+
+        screeningQuestions: cleanQuestions // 🆕
       };
 
       let response;
@@ -430,6 +456,37 @@ export default function RecruitForm({ initialData }: RecruitFormProps) {
                     </span>
                   ))}
                   <input type="text" placeholder="e.g. AI, Biology, Finance..." value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={handleTagKeyDown} className="bg-transparent border-0 p-0 text-sm focus:ring-0 placeholder-slate-400 flex-grow min-w-[100px]" />
+                </div>
+              </div>
+
+              {/* Screening Questions */}
+              <div className="pt-4 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-sm font-bold text-slate-700">Screening Questions (Max 3)</label>
+                  {screeningQuestions.length < 3 && (
+                    <button type="button" onClick={addQuestion} className="text-xs font-bold text-[#c5050c] hover:bg-red-50 px-2 py-1 rounded transition-colors flex items-center gap-1">
+                      <PlusIcon className="w-3 h-3" /> Add Question
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  {screeningQuestions.map((q, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={q}
+                        onChange={(e) => updateQuestion(idx, e.target.value)}
+                        placeholder={`Question ${idx + 1} (e.g. Do you have experience with React?)`}
+                        className="block w-full rounded-lg border-slate-200 focus:border-[#c5050c] focus:ring-[#c5050c] sm:text-sm py-2 px-3 bg-slate-50 focus:bg-white transition-colors"
+                      />
+                      <button type="button" onClick={() => removeQuestion(idx)} className="text-slate-400 hover:text-red-500">
+                        <TrashIcon className="w-5 h-5" />
+                      </button>
+                    </div>
+                  ))}
+                  {screeningQuestions.length === 0 && (
+                    <p className="text-xs text-slate-400 italic">No screening questions added. Anyone can apply.</p>
+                  )}
                 </div>
               </div>
             </div>
