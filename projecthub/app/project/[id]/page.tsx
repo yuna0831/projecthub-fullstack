@@ -261,8 +261,8 @@ export default function ProjectDetailPage() {
       const data = await res.json();
       if (res.ok) {
         alert(data.message);
-        if (data.project?.status === 'COMPLETED') {
-          setProject(data.project); // Update UI to completed state
+        if (data.status === 'COMPLETED') { // 🆕 Checked root status
+          setProject((prev: any) => ({ ...prev, status: 'COMPLETED' })); // Force update UI
         }
       } else {
         alert("Failed: " + data.error);
@@ -420,8 +420,8 @@ export default function ProjectDetailPage() {
                           Resume
                         </a>
                       )}
-                      <a href={`mailto:${app.user.email}`} className="px-4 py-2 bg-[#c5050c] hover:bg-red-700 rounded-lg text-sm font-bold text-white transition-colors">
-                        Contact
+                      <a href={`mailto:${app.user.email}`} className="px-4 py-2 bg-[#c5050c] hover:bg-red-700 rounded-lg text-sm font-bold text-white transition-colors flex items-center gap-2">
+                        ✉️ {app.user.email}
                       </a>
                     </div>
                   </div>
@@ -557,9 +557,7 @@ export default function ProjectDetailPage() {
                       </div>
                     )}
 
-                    <a href={`/project/${id}/room`} className="block w-full text-center py-2 border-2 border-slate-200 hover:border-slate-800 rounded-xl font-bold text-slate-700 transition mt-2">
-                      🔑 Enter Project Room
-                    </a>
+                    {/* Removed Enter Project Room Button per request */}
                   </>
                 ) : (
                   <>
