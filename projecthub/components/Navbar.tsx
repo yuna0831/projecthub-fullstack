@@ -8,7 +8,7 @@ import AuthModal from "./AuthModal";
 import Avatar from "./Avatar"; // 🆕
 
 export default function Navbar() {
-  const { user, login, logout } = useAuth();
+  const { user, login, logout, loading } = useAuth(); // 🆕
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   return (
@@ -29,7 +29,9 @@ export default function Navbar() {
           Recruit Now
         </Link>
 
-        {user ? (
+        {loading ? (
+          <div className="w-20 h-9 bg-slate-100 rounded-full animate-pulse"></div>
+        ) : user ? (
           <>
             <Link href="/dashboard" className="text-sm font-medium text-slate-600 hover:text-[#c5050c] transition">
               Dashboard

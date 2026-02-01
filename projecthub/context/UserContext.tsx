@@ -10,12 +10,14 @@ interface AuthContextType {
   loginWithEmail: (email: string, pass: string) => Promise<void>;
   signupWithEmail: (email: string, pass: string, name: string) => Promise<void>;
   logout: () => void;
+  loading: boolean; // 🆕
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true); // 🆕
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -66,6 +68,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       } else {
         setUser(null);
       }
+      setLoading(false); // 🆕
     });
     return () => unsubscribe();
   }, []);
@@ -139,7 +142,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loginWithEmail, signupWithEmail }}>
+    <AuthContext.Provider value={{ user, login, logout, loginWithEmail, signupWithEmail, loading }}>
       {children}
     </AuthContext.Provider>
   );

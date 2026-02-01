@@ -26,6 +26,9 @@ model User {
   
   contactEmail String? // 🆕 Replaces kakaoId
   discordId    String?
+  badges        String[] @default([]) // 🆕
+  completedProjectCount Int @default(0) // 🆕
+  lastActiveAt  DateTime @default(now()) // 🆕
   
   profileImage String? // URL
   coverImage   String? // URL
@@ -82,6 +85,8 @@ model Project {
   content     String?  @db.Text // Markdown content
   views       Int      @default(0)
   status      ProjectStatus @default(DRAFT)
+  completionRequested Boolean @default(false)
+  completionVotes String[] @default([]) // 🆕
   completedAt DateTime?
   
   ownerId     String

@@ -66,6 +66,15 @@ export const createProject = async (req: Request, res: Response) => {
                 },
             });
 
+            // 🏅 Badge: Project Creator
+            const userBadges = user.badges || [];
+            if (!userBadges.includes('PROJECT_CREATOR')) {
+                await tx.user.update({
+                    where: { id: user.id },
+                    data: { badges: { push: 'PROJECT_CREATOR' } }
+                });
+            }
+
             return newProject;
         });
 
@@ -239,10 +248,17 @@ export const getProjectById = async (req: Request, res: Response) => {
                 owner: { select: { id: true, name: true, email: true, profileImage: true } },
                 techStacks: true,
                 roles: true,
+                applications: { where: { status: 'ACCEPTED' }, select: { userId: true } } // 🆕 Need to know members count for UI
             }
         });
 
         if (!project) return res.status(404).json({ error: 'Project not found' });
+
+        // Calculate Voting Status for UI
+        const memberCount = project.applications.length; // Accepted applications
+        const totalVoters = memberCount + 1; // + Owner
+        const voteCount = project.completionVotes.length;
+        const requiredVotes = Math.floor(totalVoters / 2) + 1;
 
         // Check if completion requested
         const completionRequest = await prisma.projectLog.findFirst({
@@ -250,7 +266,11 @@ export const getProjectById = async (req: Request, res: Response) => {
             orderBy: { createdAt: 'desc' }
         });
 
-        res.json({ ...project, completionRequested: !!completionRequest });
+        res.json({
+            ...project,
+            completionRequested: project.completionRequested || !!completionRequest,
+            voting: { current: voteCount, required: requiredVotes, total: totalVoters } // 🆕
+        });
     } catch (error) {
         console.error('Error fetching project:', error);
         res.status(500).json({ error: 'Failed to fetch project' });
@@ -522,6 +542,12 @@ export const completeProject = async (req: Request, res: Response) => {
             data: { projectId: id, userId: user.id, action: 'COMPLETION_REQUEST' }
         });
 
+        // 🆕 Force Update DB State
+        await prisma.project.update({
+            where: { id },
+            data: { completionRequested: true }
+        });
+
         // Notify Members
         for (const member of members) {
             await prisma.notification.create({
@@ -551,66 +577,89 @@ export const confirmCompletion = async (req: Request, res: Response) => {
         const user = await prisma.user.findUnique({ where: { firebaseUid } });
         if (!user) return res.status(404).json({ error: 'User not found' });
 
-        // Check Membership
-        const app = await prisma.application.findUnique({
-            where: { projectId_userId: { projectId: id, userId: user.id } }
-        });
-        if (!app || app.status !== 'ACCEPTED') return res.status(403).json({ error: 'Not a member' });
-
-        // Check if Request Exists
-        const requestLog = await prisma.projectLog.findFirst({
-            where: { projectId: id, action: 'COMPLETION_REQUEST' },
-            orderBy: { createdAt: 'desc' }
-        });
-        if (!requestLog) return res.status(400).json({ error: 'No active completion request' });
-
-        // Record Vote
-        await prisma.projectLog.create({
-            data: {
-                projectId: id,
-                userId: user.id,
-                action: 'COMPLETION_CONFIRM',
-                metadata: { originalRequestId: requestLog.id }
-            }
+        // Fetch Project & Members
+        const project = await prisma.project.findUnique({
+            where: { id },
+            include: { applications: { where: { status: 'ACCEPTED' }, include: { user: true } } }
         });
 
-        // Check Votes
-        const project = await prisma.project.findUnique({ where: { id }, include: { applications: true } });
-        const members = project!.applications.filter(a => a.status === 'ACCEPTED');
+        if (!project) return res.status(404).json({ error: 'Project not found' });
 
-        const confirms = await prisma.projectLog.groupBy({
-            by: ['userId'],
-            where: {
-                projectId: id,
-                action: 'COMPLETION_CONFIRM',
-                createdAt: { gt: requestLog.createdAt }
-            }
-        });
+        // Verify Membership (Owner or Member)
+        const isOwner = project.ownerId === user.id;
+        const isMember = project.applications.some(app => app.userId === user.id);
 
-        const confirmCount = confirms.length;
-        // Logic: Greater than 50%
-        if (confirmCount > members.length / 2) {
-            const updated = await prisma.project.update({
+        if (!isOwner && !isMember) return res.status(403).json({ error: 'Not a member of this project' });
+
+        // Add Vote (Idempotent)
+        const currentVotes = new Set(project.completionVotes);
+        if (!currentVotes.has(user.id)) {
+            currentVotes.add(user.id);
+            await prisma.project.update({
                 where: { id },
-                data: { status: 'COMPLETED', completedAt: new Date() }
+                data: { completionVotes: Array.from(currentVotes) }
             });
-
-            // Notify Everyone
-            const uniqueUserIds = new Set([project!.ownerId, ...members.map(m => m.userId)]);
-            for (const uid of uniqueUserIds) {
-                await prisma.notification.create({
-                    data: {
-                        userId: uid,
-                        message: `🏆 Project "${project!.title}" is officially COMPLETED!`,
-                        type: 'SUCCESS',
-                        link: `/project/${id}`
-                    }
-                });
-            }
-            return res.json({ message: 'Project completed successfully', project: updated });
         }
 
-        res.json({ message: 'Confirmation recorded. Waiting for more votes.', current: confirmCount, required: Math.floor(members.length / 2) + 1 });
+        // Check Consensus
+        // Voters = Owner + Accepted Members
+        const allMemberIds = new Set([project.ownerId, ...project.applications.map(app => app.userId)]);
+        const totalVoters = allMemberIds.size;
+        const voteCount = currentVotes.size + (currentVotes.has(user.id) ? 0 : 1); // Optimistic count if we just added
+
+        const majorityThreshold = Math.floor(totalVoters / 2) + 1;
+
+        if (voteCount >= majorityThreshold) {
+            // 🚀 AUTOMATION: Transaction for Completion
+            await prisma.$transaction(async (tx) => {
+                // 1. Update Project Status
+                await tx.project.update({
+                    where: { id },
+                    data: { status: 'COMPLETED', completedAt: new Date() }
+                });
+
+                // 2. Award Badges & Increment Count for ALL Participants
+                for (const memberId of allMemberIds) {
+                    const member = await tx.user.findUnique({ where: { id: memberId } });
+                    if (!member) continue;
+
+                    const newCount = member.completedProjectCount + 1;
+                    const newBadges = new Set(member.badges);
+
+                    // Award 'COMPLETED_PRO' badge if 1st completion
+                    if (newCount >= 1) newBadges.add('COMPLETED_PRO');
+
+                    await tx.user.update({
+                        where: { id: memberId },
+                        data: {
+                            completedProjectCount: { increment: 1 },
+                            badges: Array.from(newBadges)
+                        }
+                    });
+
+                    // Notification
+                    await tx.notification.create({
+                        data: {
+                            userId: memberId,
+                            message: `🏆 Victory! Project "${project.title}" is officially COMPLETED! You earned a completion point.`,
+                            type: 'SUCCESS',
+                            link: `/project/${id}`
+                        }
+                    });
+                }
+            });
+
+            return res.json({
+                message: 'Consensus reached! Project marked as COMPLETED. Badges awarded.',
+                status: 'COMPLETED'
+            });
+        }
+
+        res.json({
+            message: `Vote recorded. Progress: ${voteCount}/${totalVoters} (Need ${majorityThreshold})`,
+            current: voteCount,
+            required: majorityThreshold
+        });
 
     } catch (error) {
         console.error("Confirm Error:", error);

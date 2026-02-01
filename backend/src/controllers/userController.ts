@@ -33,6 +33,35 @@ export const syncUser = async (req: Request, res: Response) => {
       }
     });
 
+    // 🏅 Badge Checks (Sync-time)
+    const badges = new Set(user.badges);
+    let updated = false;
+
+    // 1. Verified @wisc.edu
+    if (email.endsWith('@wisc.edu') && !badges.has('VERIFIED_STUDENT')) {
+      badges.add('VERIFIED_STUDENT');
+      updated = true;
+    }
+
+    // 2. Active This Semester (Simple Logic: If syncing, they are active)
+    if (!badges.has('ACTIVE_USER')) {
+      badges.add('ACTIVE_USER');
+      updated = true;
+    }
+
+    if (updated) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { badges: Array.from(badges), lastActiveAt: new Date() }
+      });
+    } else {
+      // Just update activity
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastActiveAt: new Date() }
+      });
+    }
+
     res.status(200).json({ message: 'User synced successfully', user });
   } catch (error) {
     console.error('Error syncing user:', error);
@@ -128,6 +157,17 @@ export const updateApplicationStatus = async (req: Request, res: Response) => {
         link: `/dashboard`
       }
     });
+
+    // 🏅 Badge: Team Member (If Accepted)
+    if (status === 'ACCEPTED') {
+      const applicant = await prisma.user.findUnique({ where: { id: application.userId } });
+      if (applicant && !applicant.badges.includes('TEAM_MEMBER')) {
+        await prisma.user.update({
+          where: { id: applicant.id },
+          data: { badges: { push: 'TEAM_MEMBER' } }
+        });
+      }
+    }
 
     // 🔒 Rigid Completion Logic: Check if all roles are filled
     if (status === 'ACCEPTED') {

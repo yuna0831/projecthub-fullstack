@@ -285,6 +285,10 @@ export default function ProfilePage() {
                       <div className="text-slate-600 flex items-center gap-4 mt-1 text-sm font-medium">
                         <span className="flex items-center gap-1.5"><AcademicCapIcon className="w-5 h-5 text-slate-400" /> {profile?.major || "Undecided"} • {profile?.year || "Freshman"}</span>
                         <span className="flex items-center gap-1.5"><MapPinIcon className="w-5 h-5 text-slate-400" /> Madison, WI</span>
+                        {/* 🆕 Completed Count */}
+                        <span className="flex items-center gap-1.5 text-slate-900 font-bold bg-slate-100 px-2 py-0.5 rounded border border-slate-200" title="Completed Projects">
+                          ✅ {profile?.completedProjectCount || 0} Completed
+                        </span>
                       </div>
 
                       {/* Work Style Chips */}
@@ -418,17 +422,37 @@ export default function ProfilePage() {
               <div className="absolute top-0 right-0 p-4 opacity-10 text-9xl">🏆</div>
               <h3 className="text-lg font-bold mb-4 relative z-10">Reputation & Badges</h3>
 
-              {Object.keys(badges).length === 0 ? (
+              {(!profile?.badges?.length && Object.keys(badges).length === 0) ? (
                 <div className="text-slate-400 text-sm italic relative z-10">
                   No badges yet. Join projects to earn them!
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-2 relative z-10">
-                  {/* Badge Rendering */}
-                  {['CODE_WIZARD', 'DEADLINE_FAIRY', 'COMMUNICATION_KING'].map(type => badges[type] && (
-                    <div key={type} className="bg-white/10 p-2 rounded-lg text-center backdrop-blur-sm border border-white/10 hover:bg-white/20 transition cursor-help" title={type}>
+                  {/* 🆕 Automatic Badges */}
+                  {profile?.badges?.map((badge: string) => (
+                    <div key={badge} className="bg-white/10 p-2 rounded-lg text-center backdrop-blur-sm border border-white/10 hover:bg-white/20 transition cursor-help relative group" title={badge}>
+                      <div className="text-2xl mb-1">
+                        {badge === 'VERIFIED_STUDENT' ? '🎓' : badge === 'PROJECT_CREATOR' ? '🚀' : badge === 'TEAM_MEMBER' ? '🤝' : badge === 'COMPLETED_PRO' ? '🏆' : '⚡'}
+                      </div>
+                      <div className="text-[10px] font-bold opacity-90 truncate px-1">
+                        {badge.replace('_', ' ')}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Existing Review Badges */}
+                  {['CODE_WIZARD', 'DEADLINE_FAIRY', 'COMMUNICATION_KING'].map(type => badges[type] > 0 && (
+                    <div key={type} className="bg-yellow-500/20 p-2 rounded-lg text-center backdrop-blur-sm border border-yellow-500/30 hover:bg-yellow-500/30 transition cursor-help relative" title={`Peer Review: ${type}`}>
                       <div className="text-2xl mb-1">{type === 'CODE_WIZARD' ? '💻' : type === 'DEADLINE_FAIRY' ? '🧚' : '🗣️'}</div>
-                      <div className="text-xs font-bold opacity-80">{badges[type]}</div>
+                      <div className="text-[10px] font-bold opacity-80 text-yellow-200">
+                        {type === 'CODE_WIZARD' ? 'Code Wizard' : type === 'DEADLINE_FAIRY' ? 'Deadline Fairy' : 'Comm. King'}
+                      </div>
+                      {/* Badge Count Badge (x2, x3) */}
+                      {badges[type] > 1 && (
+                        <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border border-red-400 shadow-sm animate-bounce">
+                          x{badges[type]}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

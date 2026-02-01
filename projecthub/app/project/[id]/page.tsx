@@ -75,12 +75,25 @@ export default function ProjectDetailPage() {
         if (user) {
           const token = await user.getIdToken();
 
-          // 🆕 Fetch Current User Profile for Apply Modal Check
+          // 🆕 Fetch Current User Profile using SYNC to get correct DB ID
           try {
-            const profileRes = await fetch(`http://localhost:3001/api/users/${user.uid}`, {
-              headers: { Authorization: `Bearer ${token}` }
+            const profileRes = await fetch('http://localhost:3001/api/users/sync', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                uid: user.uid,
+                email: user.email,
+                name: user.displayName,
+                picture: user.photoURL
+              })
             });
-            if (profileRes.ok) setUserProfile(await profileRes.json());
+            if (profileRes.ok) {
+              const data = await profileRes.json();
+              setUserProfile(data.user);
+            }
           } catch (e) { console.error("Failed to fetch profile", e); }
 
           // Check ownership
@@ -429,21 +442,14 @@ export default function ProjectDetailPage() {
           <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100 shadow-slate-200/50 sticky top-6">
             <h3 className="text-lg font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">Action</h3>
 
-            {project.status === 'CLOSED' ? (
-              <div className="space-y-3">
-                <button disabled className="w-full bg-slate-300 text-white font-bold py-3 rounded-xl cursor-not-allowed">
-                  Project Closed
-                </button>
-                {/* Allow reopening? */}
-              </div>
-            ) : project.status === 'COMPLETED' ? (
+            {project.status === 'COMPLETED' ? (
               <div className="space-y-3">
                 <button disabled className="w-full bg-green-600 text-white font-bold py-3 rounded-xl cursor-default flex items-center justify-center gap-2">
                   <CheckCircleIcon className="w-6 h-6" /> Project Completed
                 </button>
-                {(isOwner || hasApplied) && (
+                {(isOwner || (hasApplied && applicationStatus === 'ACCEPTED')) && (
                   <button onClick={() => setReviewModalOpen(true)} className="block w-full text-center py-2 bg-yellow-400 hover:bg-yellow-500 rounded-xl font-bold text-slate-900 transition shadow-sm">
-                    ⭐ Give Peer Review
+                    ⭐ Send Badges to Team
                   </button>
                 )}
               </div>
@@ -482,9 +488,31 @@ export default function ProjectDetailPage() {
                     🚀 Publish Project
                   </button>
                 ) : completionRequested ? (
-                  <button disabled className="w-full bg-yellow-100 text-yellow-700 font-bold py-3 rounded-xl cursor-default border border-yellow-200">
-                    Waiting for Confirmation...
-                  </button>
+                  <>
+                    <div className="w-full bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-2">
+                      <p className="text-sm font-bold text-yellow-800 mb-1">Completion Vote in Progress</p>
+                      <div className="w-full bg-yellow-200 rounded-full h-2.5 mb-2">
+                        <div className="bg-yellow-500 h-2.5 rounded-full" style={{ width: `${(project.voting?.current / project.voting?.total) * 100}%` }}></div>
+                      </div>
+                      <p className="text-xs text-yellow-700">
+                        {project.voting?.current || 0} / {project.voting?.total || '?'} Votes (Need {project.voting?.required})
+                      </p>
+                    </div>
+
+                    {/* Check if Owner voted */}
+                    {!project.completionVotes?.includes(userProfile?.id) ? (
+                      <button
+                        onClick={handleConfirmCompletion}
+                        className="w-full bg-[#c5050c] text-white font-bold py-3 rounded-xl hover:bg-red-700 transition animate-pulse"
+                      >
+                        Confirm Completion
+                      </button>
+                    ) : (
+                      <button disabled className="w-full bg-yellow-100 text-yellow-700 font-bold py-3 rounded-xl cursor-default border border-yellow-200">
+                        Waiting for Team...
+                      </button>
+                    )}
+                  </>
                 ) : (
                   <button
                     onClick={handleRequestCompletion}
@@ -494,13 +522,6 @@ export default function ProjectDetailPage() {
                   </button>
                 )}
               </div>
-            ) : !user ? (
-              <button
-                onClick={() => alert("Please Login to Apply")}
-                className="w-full bg-slate-800 text-white font-bold py-3 rounded-xl opacity-90 transition-opacity hover:opacity-100"
-              >
-                Login to Apply
-              </button>
             ) : hasApplied ? (
               <div className="space-y-3">
                 {/* Status Display */}
@@ -516,15 +537,27 @@ export default function ProjectDetailPage() {
 
                     {/* Member Actions */}
                     {completionRequested && (
-                      <button
-                        onClick={handleConfirmCompletion}
-                        className="w-full bg-[#c5050c] text-white font-bold py-3 rounded-xl hover:bg-red-700 transition animate-pulse"
-                      >
-                        Confirm Completion
-                      </button>
+                      !project.completionVotes?.includes(userProfile?.id || user?.uid) ? (
+                        <button
+                          onClick={handleConfirmCompletion}
+                          className="w-full bg-[#c5050c] text-white font-bold py-3 rounded-xl hover:bg-red-700 transition animate-pulse"
+                        >
+                          Confirm Completion
+                        </button>
+                      ) : (
+                        <button disabled className="w-full bg-yellow-100 text-yellow-700 font-bold py-3 rounded-xl cursor-default border border-yellow-200">
+                          Waiting for Team...
+                        </button>
+                      )
                     )}
 
-                    <a href={`/project/${id}/room`} className="block w-full text-center py-2 border-2 border-slate-200 hover:border-slate-800 rounded-xl font-bold text-slate-700 transition">
+                    {completionRequested && (
+                      <div className="mt-2 text-center text-xs text-slate-500">
+                        Vote Progress: {project.voting?.current}/{project.voting?.total}
+                      </div>
+                    )}
+
+                    <a href={`/project/${id}/room`} className="block w-full text-center py-2 border-2 border-slate-200 hover:border-slate-800 rounded-xl font-bold text-slate-700 transition mt-2">
                       🔑 Enter Project Room
                     </a>
                   </>
@@ -542,6 +575,19 @@ export default function ProjectDetailPage() {
                   </>
                 )}
               </div>
+            ) : project.status === 'CLOSED' ? (
+              <div className="space-y-3">
+                <button disabled className="w-full bg-slate-300 text-white font-bold py-3 rounded-xl cursor-not-allowed">
+                  Project Closed
+                </button>
+              </div>
+            ) : !user ? (
+              <button
+                onClick={() => alert("Please Login to Apply")}
+                className="w-full bg-slate-800 text-white font-bold py-3 rounded-xl opacity-90 transition-opacity hover:opacity-100"
+              >
+                Login to Apply
+              </button>
             ) : (
               <button
                 onClick={handleApplyClick}
