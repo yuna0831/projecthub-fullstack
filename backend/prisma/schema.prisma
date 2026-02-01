@@ -162,6 +162,7 @@ model Application {
   user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   roleName  String? // Selected role for the application
+  answers   Json?   // 🆕 Screening Question Answers
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

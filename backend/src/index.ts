@@ -43,3 +43,4 @@ app.get('/api/me', verifyToken, (req, res) => {
 app.listen(PORT, () => {
     console.log(`✅ Server is running on http://localhost:${PORT}`);
 });
+// Force restart for Prisma Client update
