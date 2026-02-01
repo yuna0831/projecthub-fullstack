@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "../context/UserContext";
 import NotificationBell from "./NotificationBell";
 import AuthModal from "./AuthModal";
+import Avatar from "./Avatar"; // 🆕
 
 export default function Navbar() {
   const { user, login, logout } = useAuth();
@@ -33,10 +34,10 @@ export default function Navbar() {
             <Link href="/dashboard" className="text-sm font-medium text-slate-600 hover:text-[#c5050c] transition">
               Dashboard
             </Link>
-            <Link href="/profile" className="text-sm font-medium text-slate-600 hover:text-[#c5050c] transition">
-              Profile
-            </Link>
             <NotificationBell />
+            <Link href="/profile">
+              <Avatar name={user.displayName} id={user.uid} size="sm" className="hover:ring-2 ring-offset-2 ring-[#c5050c] transition cursor-pointer" />
+            </Link>
             <button
               onClick={logout}
               className="text-sm px-4 py-2 rounded-full border border-slate-200 hover:bg-slate-50 text-slate-600 transition"

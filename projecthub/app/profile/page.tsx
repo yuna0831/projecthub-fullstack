@@ -17,6 +17,7 @@ import {
 
 import { storage } from "../../lib/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import Avatar from "../../components/Avatar"; // 🆕
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -118,9 +119,13 @@ export default function ProfilePage() {
       await uploadBytes(fileRef, file);
       const url = await getDownloadURL(fileRef);
       setFormData(prev => ({ ...prev, [field]: url }));
-    } catch (error) {
+    } catch (error: any) {
       console.error("Upload failed", error);
-      alert("Image upload failed");
+      if (error.code === 'storage/unauthorized') {
+        alert("Permission Denied: You cannot upload here. Check Storage Rules.");
+      } else {
+        alert(`Image upload failed: ${error.message}`);
+      }
     } finally {
       setUploading(false);
     }
@@ -251,20 +256,9 @@ export default function ProfilePage() {
               <div className="flex flex-col md:flex-row gap-6 -mt-20 relative z-10">
                 {/* Avatar */}
                 <div className="relative">
-                  <div className="w-40 h-40 rounded-full border-[6px] border-white shadow-xl bg-white overflow-hidden relative">
-                    {formData.profileImage || user?.photoURL ? (
-                      <Image src={(formData.profileImage || user?.photoURL) as string} alt="User" fill className="object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-slate-100 flex items-center justify-center text-6xl">🦡</div>
-                    )}
-                    {uploading && <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-xs font-bold">Uploading...</div>}
+                  <div className="w-40 h-40 rounded-full border-[6px] border-white shadow-xl bg-white overflow-hidden relative flex items-center justify-center">
+                    <Avatar name={formData.name || user?.displayName} id={user?.uid} size="2xl" className="w-full h-full text-6xl" />
                   </div>
-                  {isEditing && (
-                    <label className="absolute bottom-2 right-2 bg-white p-2 rounded-full shadow-md text-[#c5050c] hover:bg-slate-50 border border-slate-200 cursor-pointer z-20">
-                      <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'profileImage')} />
-                      <CameraIcon className="w-5 h-5" />
-                    </label>
-                  )}
                 </div>
 
                 {/* Text Info */}

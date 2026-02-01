@@ -10,6 +10,7 @@ import {
     BriefcaseIcon,
     AcademicCapIcon,
 } from "@heroicons/react/24/outline";
+import Avatar from "../../../components/Avatar"; // 🆕
 
 export default function UserProfilePage() {
     const { id } = useParams();
@@ -81,12 +82,8 @@ export default function UserProfilePage() {
                             <div className="flex flex-col md:flex-row gap-6 -mt-20 relative z-10">
                                 {/* Avatar */}
                                 <div className="relative">
-                                    <div className="w-40 h-40 rounded-full border-[6px] border-white shadow-xl bg-white overflow-hidden relative">
-                                        {profile.profileImage ? (
-                                            <Image src={profile.profileImage} alt="User" fill className="object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full bg-slate-100 flex items-center justify-center text-6xl">🦡</div>
-                                        )}
+                                    <div className="w-40 h-40 rounded-full border-[6px] border-white shadow-xl bg-white overflow-hidden relative flex items-center justify-center">
+                                        <Avatar name={profile.name} id={profile.id} size="2xl" className="w-full h-full text-6xl" />
                                     </div>
                                 </div>
 

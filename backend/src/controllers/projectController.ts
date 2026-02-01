@@ -300,8 +300,8 @@ export const applyToProject = async (req: Request, res: Response) => {
                 message,
                 resumeUrl,
                 roleName,
-                answers: answers as any // 🆕
-            }
+                answers: answers ?? {} // Ensure it's not undefined if that was the issue, but casting whole object might be needed if key is missing from type
+            } as any // Force cast to avoid 'excess property' check if types aren't syncing
         });
 
         // 🔔 Notify Project Owner

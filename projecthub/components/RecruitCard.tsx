@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Avatar from "./Avatar"; // 🆕
 
 
 interface RecruitCardProps {
@@ -117,9 +118,12 @@ export default function RecruitCard({
           <span className="text-xs font-semibold text-slate-600 bg-slate-50 px-2 py-1 rounded truncate max-w-[60%]">
             Looking for: {roles.length > 0 ? roles[0] + (roles.length > 1 ? ` +${roles.length - 1}` : "") : "Teammates"}
           </span>
-          <span className="text-xs text-slate-400 font-medium truncate ml-2">
-            {ownerName}
-          </span>
+          <div className="flex items-center gap-2 ml-2 overflow-hidden">
+            <Avatar name={ownerName} size="sm" className="w-6 h-6 text-[10px] flex-shrink-0" />
+            <span className="text-xs text-slate-400 font-medium truncate">
+              {ownerName}
+            </span>
+          </div>
         </div>
 
       </div>

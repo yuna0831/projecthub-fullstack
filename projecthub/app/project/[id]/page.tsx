@@ -11,6 +11,7 @@ import {
 } from "@heroicons/react/24/outline";
 import ReviewModal from "../../../components/ReviewModal";
 import ApplyModal from "../../../components/ApplyModal";
+import Avatar from "../../../components/Avatar"; // 🆕
 
 
 export default function ProjectDetailPage() {
@@ -372,10 +373,13 @@ export default function ProjectDetailPage() {
                 {applicants.map((app: any) => (
                   <div key={app.id} className="bg-slate-800/50 p-6 rounded-xl border border-slate-700 hover:border-slate-500 transition-colors flex flex-col gap-4">
                     <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-bold text-lg text-white">{app.user.name}</p>
-                        <p className="text-slate-400 text-sm mb-1">{app.user.major} • {app.user.year}</p>
-                        <p className="text-[#c5050c] text-xs font-bold uppercase tracking-wider">{app.roleName || 'General Member'}</p>
+                      <div className="flex items-start gap-4">
+                        <Avatar name={app.user.name} id={app.user.id} size="lg" className="flex-shrink-0" />
+                        <div>
+                          <p className="font-bold text-lg text-white">{app.user.name}</p>
+                          <p className="text-slate-400 text-sm mb-1">{app.user.major} • {app.user.year}</p>
+                          <p className="text-[#c5050c] text-xs font-bold uppercase tracking-wider">{app.roleName || 'General Member'}</p>
+                        </div>
                       </div>
                       <div className="flex gap-2">
                         {/* Social Links if available */}
