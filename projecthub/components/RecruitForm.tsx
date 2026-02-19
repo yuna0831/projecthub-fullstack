@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "../context/UserContext";
 import {
   BriefcaseIcon, MapPinIcon, ClockIcon, GlobeAltIcon, LanguageIcon,
@@ -22,6 +23,7 @@ interface RecruitFormProps {
 
 export default function RecruitForm({ initialData }: RecruitFormProps) {
   const { user } = useAuth();
+  const router = useRouter();
   const isEditMode = !!initialData;
 
   // Basic Info -- Initialize with initialData or defaults
@@ -640,7 +642,13 @@ export default function RecruitForm({ initialData }: RecruitFormProps) {
           </div>
 
           <div className="w-full sm:w-auto flex gap-4">
-            <button type="button" className="flex-1 sm:flex-none px-6 py-3 rounded-xl font-bold text-slate-600 hover:bg-slate-100 transition-colors">Cancel</button>
+            <button
+              type="button"
+              onClick={() => router.push(isEditMode ? `/project/${initialData.id}` : '/dashboard')}
+              className="flex-1 sm:flex-none px-6 py-3 rounded-xl font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+            >
+              Cancel
+            </button>
             <button
               type="submit"
               className="flex-1 sm:flex-none px-8 py-3 rounded-xl font-bold text-white bg-[#c5050c] shadow-lg shadow-red-900/20 hover:bg-red-700 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all"

@@ -1,5 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import admin from '../config/firebase';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 // Extend Express Request type to include user
 declare global {
@@ -22,21 +25,24 @@ export const verifyToken = async (req: Request, res: Response, next: NextFunctio
         const decodedToken = await admin.auth().verifyIdToken(token);
 
         // 🛡️ Security Check: Wisc-Only & Verified Email
-        const email = decodedToken.email || "";
+        const email = (decodedToken.email || "").toLowerCase();
+        const firebaseUid = decodedToken.uid;
+
         const isWiscEmail = email.endsWith("@wisc.edu");
 
-        // Note: We enforce @wisc.edu, but we CANNOT enforce emailVerified strictly 
-        // if users are just verifying. But the requirements said "Login ok, features blocked".
-        // The middleware blocks API access. So features ARE blocked.
-        const isVerified = decodedToken.email_verified;
+        if (!isWiscEmail) {
+            // Check if user already exists in our DB (Legacy User)
+            const existingUser = await prisma.user.findUnique({
+                where: { firebaseUid }
+            });
 
-        // if (!isWiscEmail) {
-        //     return res.status(403).json({ error: "Access Denied: Only @wisc.edu emails are allowed." });
-        // }
-
-        // if (!isVerified) {
-        //     return res.status(403).json({ error: "Access Denied: Please verify your email address first." });
-        // }
+            if (!existingUser) {
+                return res.status(403).json({
+                    error: "Access Denied: Only @wisc.edu emails are allowed for new accounts.",
+                    code: "DOMAIN_RESTRICTED"
+                });
+            }
+        }
 
         req.user = decodedToken;
         next();

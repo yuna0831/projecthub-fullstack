@@ -7,8 +7,9 @@ import { useAuth } from "../../../context/UserContext";
 import ReactMarkdown from "react-markdown";
 import {
   BriefcaseIcon, MapPinIcon, ClockIcon,
-  CheckCircleIcon, UserGroupIcon, CalendarIcon, ServerIcon, XCircleIcon
+  CheckCircleIcon, UserGroupIcon, CalendarIcon, ServerIcon, XCircleIcon, HeartIcon as HeartOutline
 } from "@heroicons/react/24/outline";
+import { HeartIcon as HeartSolid } from "@heroicons/react/24/solid";
 import ReviewModal from "../../../components/ReviewModal";
 import ApplyModal from "../../../components/ApplyModal";
 import Avatar from "../../../components/Avatar"; // 🆕
@@ -25,7 +26,8 @@ export default function ProjectDetailPage() {
   const [isOwner, setIsOwner] = useState(false);
   const [loading, setLoading] = useState(true);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
-  const [completionRequested, setCompletionRequested] = useState(false); // 🆕
+  const [completionRequested, setCompletionRequested] = useState(false);
+  const [isBookmarked, setIsBookmarked] = useState(false); // 🆕 Bookmark State
 
   // Report State
   const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -74,6 +76,18 @@ export default function ProjectDetailPage() {
 
         if (user) {
           const token = await user.getIdToken();
+
+          // Check Bookmark Status
+          try {
+            const bmRes = await fetch(`http://localhost:3001/api/projects/bookmarks`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            if (bmRes.ok) {
+              const bookmarks = await bmRes.json();
+              const isBm = bookmarks.some((p: any) => p.id === id);
+              setIsBookmarked(isBm);
+            }
+          } catch (e) { console.error("Failed to fetch bookmarks", e); }
 
           // 🆕 Fetch Current User Profile using SYNC to get correct DB ID
           try {
@@ -273,6 +287,25 @@ export default function ProjectDetailPage() {
     }
   };
 
+  // 🆕 Toggle Bookmark
+  const handleToggleBookmark = async () => {
+    if (!user) return alert("Please sign in to bookmark projects.");
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`http://localhost:3001/api/projects/${id}/bookmark`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsBookmarked(data.bookmarked);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Failed to toggle bookmark");
+    }
+  };
+
   if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-[#c5050c] border-t-transparent rounded-full"></div></div>;
   if (!project) return <div className="text-center py-20 text-slate-500">Project not found.</div>;
 
@@ -320,16 +353,28 @@ export default function ProjectDetailPage() {
             {project.title}
           </h1>
 
-          <div className="flex items-center gap-6 text-sm text-slate-500">
-            <span className="flex items-center gap-2">
-              Posted by <a href={`/profile/${project.owner?.id}`} className="font-bold text-slate-800 underline decoration-slate-300 underline-offset-4 hover:text-[#c5050c] hover:decoration-[#c5050c] transition">{project.owner?.name || "Unknown"}</a>
-            </span>
-            {project.deadline && (
-              <span className="flex items-center gap-1 text-[#c5050c] font-medium">
-                <ClockIcon className="w-4 h-4" /> Deadline: {new Date(project.deadline).toLocaleDateString()}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-6 text-sm text-slate-500">
+              <span className="flex items-center gap-2">
+                Posted by <a href={`/profile/${project.owner?.id}`} className="font-bold text-slate-800 underline decoration-slate-300 underline-offset-4 hover:text-[#c5050c] hover:decoration-[#c5050c] transition">{project.owner?.name || "Unknown"}</a>
               </span>
+              {project.deadline && (
+                <span className="flex items-center gap-1 text-[#c5050c] font-medium">
+                  <ClockIcon className="w-4 h-4" /> Deadline: {new Date(project.deadline).toLocaleDateString()}
+                </span>
+              )}
+              <span className="text-slate-400">Created {new Date(project.createdAt).toLocaleDateString()}</span>
+            </div>
+
+            {!isOwner && (
+              <button
+                onClick={handleToggleBookmark}
+                className="p-2 rounded-full hover:bg-slate-100 transition-colors"
+                title={isBookmarked ? "Remove Bookmark" : "Bookmark Project"}
+              >
+                {isBookmarked ? <HeartSolid className="w-8 h-8 text-red-500" /> : <HeartOutline className="w-8 h-8 text-slate-400" />}
+              </button>
             )}
-            <span className="text-slate-400">Created {new Date(project.createdAt).toLocaleDateString()}</span>
           </div>
 
         </div>

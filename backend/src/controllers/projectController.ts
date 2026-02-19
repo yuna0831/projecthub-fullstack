@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { PrismaClient, ProjectStatus, LogAction } from '@prisma/client';
+import { createNotification } from '../services/notificationService';
+import { sendEmail } from '../services/emailService';
 
 const prisma = new PrismaClient();
 
@@ -291,8 +293,15 @@ export const applyToProject = async (req: Request, res: Response) => {
         if (!user) return res.status(404).json({ error: 'User not found' });
 
         // Check if project exists
-        const project = await prisma.project.findUnique({ where: { id } });
+        const project = await prisma.project.findUnique({
+            where: { id },
+            include: { owner: true } // Need owner email
+        });
         if (!project) return res.status(404).json({ error: 'Project not found' });
+
+        if (project.ownerId === user.id) {
+            return res.status(400).json({ error: 'You cannot apply to your own project' });
+        }
 
         if (project.status !== 'OPEN') {
             return res.status(400).json({ error: 'Project is not accepting applications' });
@@ -320,31 +329,51 @@ export const applyToProject = async (req: Request, res: Response) => {
                 message,
                 resumeUrl,
                 roleName,
-                answers: answers ?? {} // Ensure it's not undefined if that was the issue, but casting whole object might be needed if key is missing from type
-            } as any // Force cast to avoid 'excess property' check if types aren't syncing
+                answers: answers ?? {}
+            } as any
         });
 
-        // 🔔 Notify Project Owner
-        console.log(`Creating notification for Owner: ${project.ownerId}`);
-        await prisma.notification.create({
-            data: {
-                userId: project.ownerId,
-                message: `📢 New Applicant: ${user.name} applied to "${project.title}"`,
-                type: 'INFO',
-                link: `/project/${project.id}`
-            }
-        });
+        // 🔔 Notification Logic (Async)
+        (async () => {
+            try {
+                // 1. In-App Notification (Owner)
+                await createNotification({
+                    userId: project.ownerId,
+                    message: `📢 New Applicant: ${user.name} applied to "${project.title}"`,
+                    type: 'INFO',
+                    relatedUserId: user.id,
+                    relatedProjectId: project.id,
+                    link: `/project/${project.id}`
+                });
 
-        // 🔔 Notify Applicant (Confirmation)
-        console.log(`Creating notification for Applicant: ${user.id}`);
-        await prisma.notification.create({
-            data: {
-                userId: user.id,
-                message: `✅ You successfully applied to "${project.title}"`,
-                type: 'SUCCESS',
-                link: `/dashboard`
+                // 2. Email Notification (Owner)
+                if (project.owner.email) {
+                    await sendEmail({
+                        to: project.owner.email,
+                        subject: `[MadCollab] New Application for ${project.title}`,
+                        html: `
+                            <h2>New Applicant: ${user.name}</h2>
+                            <p><strong>Project:</strong> ${project.title}</p>
+                            <p><strong>Role:</strong> ${roleName || 'General'}</p>
+                            <p><strong>Message:</strong> ${message || 'No message provided.'}</p>
+                            <br/>
+                            <a href="http://localhost:3000/project/${project.id}" style="padding: 10px 20px; background-color: #c5050c; color: white; text-decoration: none; border-radius: 5px;">View Application</a>
+                        `
+                    });
+                }
+
+                // 3. In-App Notification (Applicant Confirmation)
+                await createNotification({
+                    userId: user.id,
+                    message: `✅ You successfully applied to "${project.title}"`,
+                    type: 'SUCCESS',
+                    link: `/dashboard`
+                });
+
+            } catch (err) {
+                console.error("Notification Error:", err);
             }
-        });
+        })();
 
         res.status(201).json({ message: 'Application submitted successfully', application });
     } catch (error) {
@@ -664,5 +693,107 @@ export const confirmCompletion = async (req: Request, res: Response) => {
     } catch (error) {
         console.error("Confirm Error:", error);
         res.status(500).json({ error: 'Failed to confirm' });
+    }
+};
+// 🗑️ Delete Project
+export const deleteProject = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const firebaseUid = req.user?.uid;
+        if (!firebaseUid) return res.status(401).json({ error: 'Unauthorized' });
+
+        const user = await prisma.user.findUnique({ where: { firebaseUid } });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const project = await prisma.project.findUnique({ where: { id } });
+        if (!project) return res.status(404).json({ error: 'Project not found' });
+
+        if (project.ownerId !== user.id) {
+            return res.status(403).json({ error: 'Only the owner can delete this project' });
+        }
+
+        await prisma.project.delete({ where: { id } });
+
+        res.json({ message: 'Project deleted successfully' });
+    } catch (error) {
+        console.error("Delete Project Error:", error);
+        res.status(500).json({ error: 'Failed to delete project' });
+    }
+};
+
+// ❤️ Toggle Bookmark
+export const toggleBookmark = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params; // Project ID
+        const firebaseUid = req.user?.uid;
+        if (!firebaseUid) return res.status(401).json({ error: 'Unauthorized' });
+
+        const user = await prisma.user.findUnique({ where: { firebaseUid } });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const project = await prisma.project.findUnique({ where: { id } });
+        if (!project) return res.status(404).json({ error: 'Project not found' });
+
+        const existingBookmark = await prisma.bookmark.findUnique({
+            where: {
+                userId_projectId: {
+                    userId: user.id,
+                    projectId: id
+                }
+            }
+        });
+
+        if (existingBookmark) {
+            await prisma.bookmark.delete({
+                where: {
+                    userId_projectId: {
+                        userId: user.id,
+                        projectId: id
+                    }
+                }
+            });
+            return res.json({ message: 'Bookmark removed', bookmarked: false });
+        } else {
+            await prisma.bookmark.create({
+                data: {
+                    userId: user.id,
+                    projectId: id
+                }
+            });
+            return res.json({ message: 'Project bookmarked', bookmarked: true });
+        }
+    } catch (error) {
+        console.error("Toggle Bookmark Error:", error);
+        res.status(500).json({ error: 'Failed to toggle bookmark' });
+    }
+};
+
+// 📚 Get Bookmarked Projects
+export const getBookmarks = async (req: Request, res: Response) => {
+    try {
+        const firebaseUid = req.user?.uid;
+        if (!firebaseUid) return res.status(401).json({ error: 'Unauthorized' });
+
+        const user = await prisma.user.findUnique({ where: { firebaseUid } });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const bookmarks = await prisma.bookmark.findMany({
+            where: { userId: user.id },
+            include: {
+                project: {
+                    include: {
+                        owner: { select: { name: true, email: true } },
+                        techStacks: true
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        const projects = bookmarks.map(b => b.project);
+        res.json(projects);
+    } catch (error) {
+        console.error("Get Bookmarks Error:", error);
+        res.status(500).json({ error: 'Failed to fetch bookmarks' });
     }
 };

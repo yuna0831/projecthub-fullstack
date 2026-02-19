@@ -10,7 +10,9 @@ import {
     CheckCircleIcon,
     XCircleIcon,
     ClockIcon,
-    ChevronRightIcon
+    ChevronRightIcon,
+    TrashIcon,
+    BookmarkIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 
@@ -31,9 +33,10 @@ interface Notification {
 export default function DashboardPage() {
     const { user } = useAuth();
     const [data, setData] = useState<DashboardData>({ ownedProjects: [], myApplications: [] });
-    const [notifications, setNotifications] = useState<Notification[]>([]); // 🆕
+    const [savedProjects, setSavedProjects] = useState<any[]>([]); // 🆕
+    const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'progress' | 'completed' | 'drafts' | 'applications' | 'notifications'>('progress');
+    const [activeTab, setActiveTab] = useState<'my-projects' | 'progress' | 'completed' | 'drafts' | 'applications' | 'notifications' | 'saved'>('progress');
 
     // Modal State
     const [selectedProject, setSelectedProject] = useState<any>(null);
@@ -42,7 +45,8 @@ export default function DashboardPage() {
     useEffect(() => {
         if (user) {
             fetchDashboardData();
-            fetchNotifications(); // 🆕
+            fetchNotifications();
+            fetchBookmarks(); // 🆕
         }
     }, [user]);
 
@@ -72,6 +76,17 @@ export default function DashboardPage() {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) setNotifications(await res.json());
+        } catch (e) { console.error(e); }
+    };
+
+    const fetchBookmarks = async () => {
+        try {
+            const token = await user?.getIdToken();
+            if (!token) return;
+            const res = await fetch('http://localhost:3001/api/projects/bookmarks', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) setSavedProjects(await res.json());
         } catch (e) { console.error(e); }
     };
 
@@ -149,6 +164,28 @@ export default function DashboardPage() {
         }
     };
 
+    const handleDeleteProject = async (projectId: string) => {
+        if (!confirm("Are you sure you want to PERMANENTLY delete this project? This cannot be undone.")) return;
+
+        try {
+            const token = await user?.getIdToken();
+            const res = await fetch(`http://localhost:3001/api/projects/${projectId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (res.ok) {
+                alert("Project deleted.");
+                fetchDashboardData();
+            } else {
+                throw new Error("Failed to delete");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error deleting project");
+        }
+    };
+
     // Filter Logic
     const inProgressLeading = data.ownedProjects.filter(p => p.status !== 'DRAFT' && p.status !== 'COMPLETED');
     const inProgressParticipating = data.myApplications.filter(a => a.status === 'ACCEPTED' && a.project.status !== 'COMPLETED');
@@ -177,6 +214,7 @@ export default function DashboardPage() {
                     {[
                         { id: 'my-projects', label: 'Projects I Posted', count: data.ownedProjects.length },
                         { id: 'progress', label: 'In Progress', count: inProgressLeading.length + inProgressParticipating.length },
+                        { id: 'saved', label: 'Saved', count: savedProjects.length },
                         { id: 'completed', label: 'Completed', count: completedLeading.length + completedParticipating.length },
                         { id: 'drafts', label: 'Drafts', count: drafts.length },
                         { id: 'applications', label: 'Applications', count: activeApplications.length },
@@ -236,7 +274,40 @@ export default function DashboardPage() {
                                                 Edit
                                             </Link>
                                         )}
+                                        <button
+                                            onClick={() => handleDeleteProject(project.id)}
+                                            className="px-3 py-2 bg-white border border-slate-200 text-red-500 rounded-lg hover:bg-red-50 hover:border-red-200 transition"
+                                            title="Delete Project"
+                                        >
+                                            <TrashIcon className="w-5 h-5" />
+                                        </button>
                                     </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* ❤️ SAVED */}
+                    {activeTab === 'saved' && (
+                        <div className="space-y-4">
+                            {savedProjects.length === 0 && (
+                                <div className="text-center py-20 bg-white rounded-xl border border-dashed border-slate-300">
+                                    <p className="text-slate-500 mb-4">You haven't saved any projects yet.</p>
+                                    <Link href="/find" className="text-[#c5050c] font-bold hover:underline">Browse Projects</Link>
+                                </div>
+                            )}
+                            {savedProjects.map(project => (
+                                <div key={project.id} className="bg-white rounded-xl border border-slate-200 p-6 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
+                                    <div>
+                                        <Link href={`/project/${project.id}`} className="text-lg font-bold text-slate-900 hover:text-[#c5050c] hover:underline block transition mb-1">
+                                            {project.title}
+                                        </Link>
+                                        <p className="text-sm text-slate-500 line-clamp-1">{project.description}</p>
+                                        <p className="text-xs text-slate-400 mt-1">Owner: {project.owner?.name}</p>
+                                    </div>
+                                    <Link href={`/project/${project.id}`} className="px-4 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-sm font-bold hover:bg-slate-100 transition">
+                                        View
+                                    </Link>
                                 </div>
                             ))}
                         </div>

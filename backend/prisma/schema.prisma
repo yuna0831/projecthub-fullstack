@@ -53,6 +53,7 @@ model User {
   
   projectLogs     ProjectLog[]
   reports         Report[]
+  bookmarks       Bookmark[]
 }
 
 model Experience {
@@ -120,6 +121,7 @@ model Project {
   checklistItems ChecklistItem[]
   reviews        PeerReview[]
   logs           ProjectLog[]
+  bookmarks      Bookmark[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -177,8 +179,12 @@ model Notification {
   read      Boolean  @default(false)
   link      String?  // Optional link to navigate to (e.g., /project/123)
   
-  userId    String
+  userId    String   // The recipient
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Optional Metadata
+  relatedUserId String? // The actor (e.g. applicant)
+  relatedProjectId String? // The relevant project
 
   createdAt DateTime @default(now())
 }
@@ -293,5 +299,17 @@ enum ReportStatus {
   PENDING
   RESOLVED
   DISMISSED
+}
+
+model Bookmark {
+  id        String   @id @default(uuid())
+  userId    String
+  projectId String
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, projectId])
 }
 

@@ -22,33 +22,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // 🛡️ Security Check
-        const email = firebaseUser.email || "";
-        const isDev = process.env.NODE_ENV === 'development';
-        if (!isDev && !email.endsWith("@wisc.edu")) {
-          alert("Access Denied: Only @wisc.edu emails are allowed. Please sign in with your university account.");
-          await signOut(auth);
-          return;
-        }
+        // 🛡️ Security Check: DEFER TO BACKEND for Email Domain
+        // Use backend to determine if user is allowed (Legacy vs New).
+        // Frontend strict check removed to allow legacy users.
 
-        // Email Verification Check (Optional: Enforce here or just warn? User said "deny key features". 
-        // But also said "Login is allowed but features blocked". 
-        // Wait, User Request: "로그인은 되더라도 모든 주요 기능... 차단" (Login ok, block features).
-        // BUT also: "Please verify... alert".
-        // If I block features, I should keep them logged in but maybe strict mode? 
-        // Actually, the backend blocks features. Frontend should warn.
-        // Let's keep them logged in but show warning if not verified.
-        if (!firebaseUser.emailVerified) {
-          // We'll trigger a recurring warning or just set a state? 
-          // For now, let's just alert once.
-          // NOTE: Firebase `emailVerified` might be delayed.
-        }
+        // Not checking emailVerified strictness here as discussed.
 
         setUser(firebaseUser);
 
         try {
           const token = await firebaseUser.getIdToken();
-          await fetch('http://localhost:3001/api/users/sync', {
+          const res = await fetch('http://localhost:3001/api/users/sync', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -61,9 +45,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               picture: firebaseUser.photoURL
             })
           });
-          console.log("✅ User synced with backend");
+
+          if (!res.ok) {
+            const errData = await res.json();
+            if (res.status === 403 || res.status === 401) {
+              console.error("Access Denied:", errData.error);
+              alert(errData.error || "Access Denied");
+              await signOut(auth);
+              return;
+            }
+            console.error("Sync failed:", errData);
+          } else {
+            console.log("✅ User synced with backend");
+          }
+
         } catch (error) {
           console.error("❌ Failed to sync user:", error);
+          // If network error, maybe don't sign out? But if 403, we handled it above.
         }
       } else {
         setUser(null);
@@ -85,12 +83,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const result = await signInWithPopup(auth, p);
       const user = result.user;
 
-      // Post-login checks
-      const isDev = process.env.NODE_ENV === 'development';
-      if (!isDev && !user.email?.endsWith("@wisc.edu")) {
-        await signOut(auth);
-        throw new Error("Only @wisc.edu emails are allowed.");
-      }
+      // Post-login checks: REMOVED strict frontend check to allow legacy users.
+      // Backend 'syncUser' will validate/block based on DB existence.
 
       if (!user.emailVerified) {
         alert("⚠️ Your email is not verified! You may browse, but you cannot apply or post until you verify your email via your wisc.edu inbox.");
@@ -110,8 +104,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
 
   const loginWithEmail = async (email: string, pass: string) => {
-    const isDev = process.env.NODE_ENV === 'development';
-    if (!isDev && !email.endsWith("@wisc.edu")) throw new Error("Only @wisc.edu emails are allowed.");
+    // REMOVED strict frontend check here too for legacy users
+    // const isDev = process.env.NODE_ENV === 'development';
+    // if (!isDev && !email.endsWith("@wisc.edu")) throw new Error("Only @wisc.edu emails are allowed.");
 
     try {
       const res = await signInWithEmailAndPassword(auth, email, pass);

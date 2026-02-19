@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// 🔔 Get Notifications
+// Get Notifications
 export const getNotifications = async (req: Request, res: Response) => {
     try {
         const firebaseUid = req.user?.uid;
@@ -11,17 +11,6 @@ export const getNotifications = async (req: Request, res: Response) => {
 
         const user = await prisma.user.findUnique({ where: { firebaseUid } });
         if (!user) return res.status(404).json({ error: 'User not found' });
-
-        // 🕰️ Lazy Cleanup: Delete notifications older than 14 days
-        const twoWeeksAgo = new Date();
-        twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-
-        await prisma.notification.deleteMany({
-            where: {
-                userId: user.id,
-                createdAt: { lt: twoWeeksAgo }
-            }
-        });
 
         const notifications = await prisma.notification.findMany({
             where: { userId: user.id },
@@ -32,11 +21,11 @@ export const getNotifications = async (req: Request, res: Response) => {
         res.json(notifications);
     } catch (error) {
         console.error("Get Notifications Error:", error);
-        res.status(500).json({ error: 'Failed' });
+        res.status(500).json({ error: 'Failed to fetch notifications' });
     }
 };
 
-// 🔔 Mark Notification Read
+// Mark as Read
 export const markNotificationRead = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -46,14 +35,22 @@ export const markNotificationRead = async (req: Request, res: Response) => {
         const user = await prisma.user.findUnique({ where: { firebaseUid } });
         if (!user) return res.status(404).json({ error: 'User not found' });
 
-        await prisma.notification.updateMany({
-            where: { id, userId: user.id }, // Ensure ownership
+        // Verify ownership
+        const notification = await prisma.notification.findUnique({ where: { id } });
+        if (!notification) return res.status(404).json({ error: 'Notification not found' });
+
+        if (notification.userId !== user.id) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+
+        const updated = await prisma.notification.update({
+            where: { id },
             data: { read: true }
         });
 
-        res.json({ success: true });
+        res.json(updated);
     } catch (error) {
         console.error("Mark Read Error:", error);
-        res.status(500).json({ error: 'Failed' });
+        res.status(500).json({ error: 'Failed to mark notification as read' });
     }
 };
