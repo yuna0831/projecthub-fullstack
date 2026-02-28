@@ -22,9 +22,9 @@ export default function HomePage() {
         {/* Subtle Background Pattern */}
         <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] opacity-30"></div>
 
-        <div className="max-w-5xl mx-auto px-6 relative z-10 text-center">
+        <div className="max-w-4xl mx-auto px-6 relative z-10 text-center">
 
-          <div className="inline-flex items-center gap-2 bg-red-50 text-[#c5050c] px-4 py-1.5 rounded-full text-sm font-bold mb-6 animate-fade-in-up">
+          <div className="inline-flex items-center gap-2 bg-red-50 text-[#c5050c] px-4 py-1.5 rounded-full text-sm font-bold mb-8 animate-fade-in-up border border-red-100 shadow-sm">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-[#c5050c]"></span>
@@ -32,36 +32,38 @@ export default function HomePage() {
             Now Live for UW-Madison
           </div>
 
-          <div className="mb-2">
-            <span className="text-xl md:text-2xl font-bold text-slate-400 uppercase tracking-[0.2em]">Welcome to</span>
+          <div className="mb-4">
+            <span className="text-xl md:text-2xl font-bold text-slate-400 uppercase tracking-widest">Welcome to</span>
           </div>
-          <h1 className="text-7xl md:text-9xl font-black text-slate-900 tracking-tighter mb-6 leading-none">
-            <span className="text-[#c5050c]">Mad</span>Collab
+
+          <h1 className="text-6xl md:text-8xl lg:text-[7rem] font-black text-slate-900 tracking-tighter mb-8 leading-none">
+            <span className="bg-gradient-to-br from-[#c5050c] via-red-700 to-red-900 bg-clip-text text-transparent drop-shadow-sm">Mad</span>Collab
           </h1>
 
-          <p className="text-2xl md:text-4xl font-bold text-slate-400 mb-10 leading-tight">
-            Turn Your <span className="text-slate-900">Ideas</span> Into <span className="text-slate-900">Reality</span>
+          <p className="text-2xl md:text-4xl font-extrabold text-slate-700 mb-10 leading-tight">
+            Turn Your <span className="text-slate-900 underline decoration-[#c5050c]/30 underline-offset-4">Ideas</span> Into <span className="text-[#c5050c]">Reality</span>
           </p>
 
-          <p className="text-lg md:text-xl text-slate-500 mb-12 max-w-2xl mx-auto leading-relaxed font-medium">
+          <p className="text-lg md:text-xl text-slate-500 mb-14 max-w-2xl mx-auto leading-relaxed font-medium">
             The dedicated platform for Badgers to build startups, ace capstone projects,
             and find the perfect teammates. No noise, just collaboration.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-5">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
             <Link
               href="/find"
-              className="w-full sm:w-auto px-8 py-4 bg-[#c5050c] text-white rounded-xl font-bold text-lg hover:bg-[#a0040a] transition-all shadow-xl shadow-red-900/20 hover:scale-105 flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-10 py-4 lg:py-5 bg-gradient-to-r from-[#c5050c] to-red-800 text-white rounded-2xl font-bold text-lg hover:from-red-800 hover:to-[#900000] transition-all shadow-xl shadow-red-900/30 hover:-translate-y-1 hover:shadow-2xl flex items-center justify-center gap-3 ring-1 ring-white/20"
             >
-              <MagnifyingGlassIcon className="w-6 h-6" /> Find a Team
+              <MagnifyingGlassIcon className="w-6 h-6 stroke-2" /> Find a Team
             </Link>
             <Link
               href="/post"
-              className="w-full sm:w-auto px-8 py-4 bg-white text-slate-800 border-2 border-slate-200 rounded-xl font-bold text-lg hover:border-[#c5050c] hover:text-[#c5050c] transition-all flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-10 py-4 lg:py-5 bg-white text-slate-800 border-2 border-slate-200 rounded-2xl font-bold text-lg hover:border-slate-300 hover:bg-slate-50 transition-all shadow-sm hover:-translate-y-1 hover:shadow-md flex items-center justify-center gap-2"
             >
               Start a Project
             </Link>
           </div>
+
         </div>
       </section>
 

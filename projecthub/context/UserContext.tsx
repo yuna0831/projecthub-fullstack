@@ -22,52 +22,82 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // 🛡️ Security Check: DEFER TO BACKEND for Email Domain
-        // Use backend to determine if user is allowed (Legacy vs New).
-        // Frontend strict check removed to allow legacy users.
+        // Enforce @wisc.edu domain rigidly
+        if (!firebaseUser.email?.toLowerCase().endsWith("@wisc.edu")) {
+          alert("Please use your UW-Madison email.");
+          await signOut(auth);
+          setUser(null);
+          setLoading(false);
+          return;
+        }
 
-        // Not checking emailVerified strictness here as discussed.
+        // Require email verification before allowing login or backend sync
+        if (!firebaseUser.emailVerified) {
+          // Keep checking every 3 seconds while user is not verified
+          const verificationInterval = setInterval(async () => {
+            await firebaseUser.reload();
+            if (firebaseUser.emailVerified) {
+              clearInterval(verificationInterval);
+              // Wait a bit to ensure UI reflects before firing the rest of the flow...
+              setTimeout(() => {
+                // To trigger a re-render and re-run onAuthStateChanged 
+                // We'll update state directly or just manually continue the flow
+                setUser(firebaseUser);
+                syncUserWithBackend(firebaseUser); // abstracting the fetch out
+              }, 500);
+            }
+          }, 3000);
+
+          // Return early. User state is null while polling.
+          setUser(null);
+          setLoading(false);
+          return;
+        }
 
         setUser(firebaseUser);
+        await syncUserWithBackend(firebaseUser);
 
-        try {
-          const token = await firebaseUser.getIdToken();
-          const res = await fetch('http://localhost:3001/api/users/sync', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              name: firebaseUser.displayName,
-              picture: firebaseUser.photoURL
-            })
-          });
-
-          if (!res.ok) {
-            const errData = await res.json();
-            if (res.status === 403 || res.status === 401) {
-              console.error("Access Denied:", errData.error);
-              alert(errData.error || "Access Denied");
-              await signOut(auth);
-              return;
-            }
-            console.error("Sync failed:", errData);
-          } else {
-            console.log("✅ User synced with backend");
-          }
-
-        } catch (error) {
-          console.error("❌ Failed to sync user:", error);
-          // If network error, maybe don't sign out? But if 403, we handled it above.
-        }
       } else {
         setUser(null);
+        setLoading(false); // 🆕
       }
-      setLoading(false); // 🆕
     });
+
+    const syncUserWithBackend = async (firebaseUser: User) => {
+      try {
+        const token = await firebaseUser.getIdToken();
+        const res = await fetch('http://localhost:3001/api/users/sync', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            name: firebaseUser.displayName,
+            picture: firebaseUser.photoURL
+          })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          if (res.status === 403 || res.status === 401) {
+            console.error("Access Denied:", errData.error);
+            alert(errData.error || "Access Denied");
+            await signOut(auth);
+            return;
+          }
+          console.error("Sync failed:", errData);
+        } else {
+          console.log("✅ User synced with backend");
+        }
+      } catch (error) {
+        console.error("❌ Failed to sync user:", error);
+      } finally {
+        setLoading(false); // ensure loading flips to false
+      }
+    };
     return () => unsubscribe();
   }, []);
 
@@ -104,14 +134,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
 
   const loginWithEmail = async (email: string, pass: string) => {
-    // REMOVED strict frontend check here too for legacy users
-    // const isDev = process.env.NODE_ENV === 'development';
-    // if (!isDev && !email.endsWith("@wisc.edu")) throw new Error("Only @wisc.edu emails are allowed.");
+    if (!email.toLowerCase().endsWith("@wisc.edu")) {
+      throw new Error("Only @wisc.edu emails are allowed.");
+    }
 
     try {
       const res = await signInWithEmailAndPassword(auth, email, pass);
       if (!res.user.emailVerified) {
-        alert("⚠️ Your email is not verified! Please check your inbox.");
+        throw new Error("⚠️ Please verify your email to continue. Check your inbox for a verification link.");
       }
     } catch (error: any) {
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
@@ -122,14 +152,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signupWithEmail = async (email: string, pass: string, name: string) => {
-    const isDev = process.env.NODE_ENV === 'development';
-    if (!isDev && !email.endsWith("@wisc.edu")) throw new Error("Only @wisc.edu emails are allowed.");
+    if (!email.toLowerCase().endsWith("@wisc.edu")) {
+      throw new Error("Only @wisc.edu emails are allowed.");
+    }
 
     const res = await createUserWithEmailAndPassword(auth, email, pass);
     await updateProfile(res.user, { displayName: name });
     await sendEmailVerification(res.user);
 
-    alert(`Verification email sent to ${email}. Please verify before applying.`);
+    // No alert here, handled by UI
   };
 
   const logout = async () => {
