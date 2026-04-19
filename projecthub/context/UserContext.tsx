@@ -22,8 +22,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Enforce @wisc.edu domain rigidly
-        if (!firebaseUser.email?.toLowerCase().endsWith("@wisc.edu")) {
+        // Enforce @wisc.edu domain rigidly (with whitelist bypass)
+        const email = firebaseUser.email?.toLowerCase() || "";
+        const WHITELISTED_EMAILS = ["redfe01@gmail.com"];
+        const isWiscEmail = email.endsWith("@wisc.edu") || WHITELISTED_EMAILS.includes(email);
+
+        if (!isWiscEmail) {
           alert("Please use your UW-Madison email.");
           await signOut(auth);
           setUser(null);
@@ -32,7 +36,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         // Require email verification before allowing login or backend sync
-        if (!firebaseUser.emailVerified) {
+        const isWhitelisted = WHITELISTED_EMAILS.includes(email);
+        if (!firebaseUser.emailVerified && !isWhitelisted) {
           // Keep checking every 3 seconds while user is not verified
           const verificationInterval = setInterval(async () => {
             await firebaseUser.reload();
@@ -134,13 +139,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
 
   const loginWithEmail = async (email: string, pass: string) => {
-    if (!email.toLowerCase().endsWith("@wisc.edu")) {
+    const WHITELISTED_EMAILS = ["redfe01@gmail.com"];
+    const isWiscEmail = email.toLowerCase().endsWith("@wisc.edu") || WHITELISTED_EMAILS.includes(email.toLowerCase());
+
+    if (!isWiscEmail) {
       throw new Error("Only @wisc.edu emails are allowed.");
     }
 
     try {
       const res = await signInWithEmailAndPassword(auth, email, pass);
-      if (!res.user.emailVerified) {
+      const isWhitelisted = WHITELISTED_EMAILS.includes(email.toLowerCase());
+
+      if (!res.user.emailVerified && !isWhitelisted) {
         throw new Error("⚠️ Please verify your email to continue. Check your inbox for a verification link.");
       }
     } catch (error: any) {
@@ -152,7 +162,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signupWithEmail = async (email: string, pass: string, name: string) => {
-    if (!email.toLowerCase().endsWith("@wisc.edu")) {
+    const WHITELISTED_EMAILS = ["redfe01@gmail.com"];
+    const isWiscEmail = email.toLowerCase().endsWith("@wisc.edu") || WHITELISTED_EMAILS.includes(email.toLowerCase());
+
+    if (!isWiscEmail) {
       throw new Error("Only @wisc.edu emails are allowed.");
     }
 

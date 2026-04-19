@@ -12,8 +12,11 @@ export const syncUser = async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Forbidden: UID mismatch' });
     }
 
-    // 🛡️ Double Check: Domain Restriction
-    if (!email.toLowerCase().endsWith('@wisc.edu')) {
+    // 🛡️ Double Check: Domain Restriction (with whitelist bypass)
+    const WHITELISTED_EMAILS = ["redfe01@gmail.com"];
+    const isWiscEmail = email.toLowerCase().endsWith('@wisc.edu') || WHITELISTED_EMAILS.includes(email.toLowerCase());
+
+    if (!isWiscEmail) {
       const existingUser = await prisma.user.findUnique({ where: { firebaseUid: uid } });
       if (!existingUser) {
         return res.status(403).json({ error: "Access Denied: Only @wisc.edu emails are allowed for new accounts." });

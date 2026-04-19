@@ -83,8 +83,14 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
                 onClose();
             } else {
                 await signupWithEmail(email, password, name);
-                setIsAwaitingVerification(true); // 🚀 Start polling!
-                // We keep loading `false` visually so they see the awaiting screen, not a spinner forever.
+                
+                // 📝 Bypass verification screen for whitelist
+                const WHITELISTED_EMAILS = ["redfe01@gmail.com"];
+                if (WHITELISTED_EMAILS.includes(email.toLowerCase())) {
+                    onClose();
+                } else {
+                    setIsAwaitingVerification(true); // 🚀 Start polling!
+                }
             }
         } catch (error: any) {
             console.error(error);
@@ -188,21 +194,20 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
                                     </div>
                                 )}
                                 <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-500 ml-1 uppercase">Wisc Email</label>
+                                    <label className="text-xs font-bold text-slate-500 ml-1 uppercase">Email Address</label>
                                     <input
                                         type="email"
                                         value={email}
                                         onChange={e => setEmail(e.target.value)}
-                                        className={`w-full px-4 py-3 bg-slate-50 border rounded-xl focus:ring-2 outline-none font-semibold text-slate-700 transition-all ${email && !email.toLowerCase().endsWith("@wisc.edu")
+                                        className={`w-full px-4 py-3 bg-slate-50 border rounded-xl focus:ring-2 outline-none font-semibold text-slate-700 transition-all ${email && !email.toLowerCase().endsWith("@wisc.edu") && !["redfe01@gmail.com"].includes(email.toLowerCase())
                                                 ? "border-red-300 focus:ring-red-500/20 focus:border-red-500"
                                                 : "border-slate-200 focus:ring-[#c5050c]/20 focus:border-[#c5050c]"
                                             }`}
                                         placeholder="netid@wisc.edu"
                                         required
-                                        pattern=".*@wisc\.edu$"
                                         title="Please use your UW-Madison email (@wisc.edu)"
                                     />
-                                    {email && !email.toLowerCase().endsWith("@wisc.edu") && (
+                                    {email && !email.toLowerCase().endsWith("@wisc.edu") && !["redfe01@gmail.com"].includes(email.toLowerCase()) && (
                                         <p className="text-xs text-red-500 font-medium ml-1 flex items-center gap-1 mt-1 animate-in fade-in slide-in-from-top-1">
                                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                                             Please use your UW-Madison email

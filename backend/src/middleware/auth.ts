@@ -28,7 +28,10 @@ export const verifyToken = async (req: Request, res: Response, next: NextFunctio
         const email = (decodedToken.email || "").toLowerCase();
         const firebaseUid = decodedToken.uid;
 
-        const isWiscEmail = email.endsWith("@wisc.edu");
+        // 📝 Whitelist for guest accounts / external collaborators
+        const WHITELISTED_EMAILS = ["redfe01@gmail.com"];
+
+        const isWiscEmail = email.endsWith("@wisc.edu") || WHITELISTED_EMAILS.includes(email);
 
         if (!isWiscEmail) {
             // Check if user already exists in our DB (Legacy User)
